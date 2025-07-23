@@ -6,7 +6,7 @@ idle_timeout_minutes: 60
 
 provider:
   type: external
-  module: sky.prvision.seeweb
+  module: sky.provision.seeweb
   region: "{{ region }}"
 
 auth:
@@ -20,9 +20,9 @@ available_node_types:
       plan: {{ instance_type }}          # e.g. "eCS4" or "gCS4"
       image: {{ image_id }}              # e.g. "ubuntu-2204"
       location: {{ region }}             # e.g. "it-mi2"
-      {% if custom_resources is not none %}
-      gpu: {{ custom_resources.gpu }}
-      gpu_label: "{{ custom_resources.gpu_label }}"
+      {% if seeweb_gpu_config is not none %}
+      gpu: {{ seeweb_gpu_config.gpu }}
+      gpu_label: "{{ seeweb_gpu_config.gpu_label }}"
       {% endif %}
       disk: {{ disk_size }}              # GB, optional
 

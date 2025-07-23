@@ -133,10 +133,30 @@ class Seeweb(clouds.Cloud):
         # Note: Spot instances and multi-node are automatically handled by 
         # the framework via _CLOUD_UNSUPPORTED_FEATURES
         
+        resources = resources.assert_launchable()
+        acc_dict = self.get_accelerators_from_instance_type(
+            resources.instance_type)
+        # Standard custom_resources string for Ray (like other clouds)
+        custom_resources = resources_utils.make_ray_custom_resources_str(
+            acc_dict)
+        
+        # Seeweb-specific GPU configuration for the provisioner
+        seeweb_gpu_config = None
+        if resources.accelerators:
+            # If the instance has accelerators, prepare GPU configuration
+            accelerator_name = list(resources.accelerators.keys())[0]
+            accelerator_count = resources.accelerators[accelerator_name]
+            seeweb_gpu_config = {
+                'gpu': accelerator_count,
+                'gpu_label': accelerator_name
+            }
+        
         return {
             'instance_type': resources.instance_type,
             'region': region.name,
             'cluster_name': cluster_name,
+            'custom_resources': custom_resources,
+            'seeweb_gpu_config': seeweb_gpu_config,
         }
 
     @classmethod
