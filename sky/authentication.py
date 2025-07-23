@@ -26,12 +26,14 @@ import socket
 import subprocess
 import sys
 import typing
-from typing import Any, Dict, Optional, Tuple
 import uuid
 
 import colorama
 import filelock
+import pathlib
 
+from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
 from sky import clouds
 from sky import exceptions
 from sky import global_user_state
@@ -43,6 +45,7 @@ from sky.adaptors import ibm
 from sky.adaptors import kubernetes
 from sky.adaptors import runpod
 from sky.adaptors import vast
+from sky.adaptors import seeweb as seeweb_adaptor
 from sky.provision.fluidstack import fluidstack_utils
 from sky.provision.kubernetes import utils as kubernetes_utils
 from sky.provision.lambda_cloud import lambda_utils
@@ -364,6 +367,40 @@ def setup_lambda_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
     config['auth']['remote_key_name'] = name
     return config
 
+def setup_seeweb_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Registra la chiave pubblica con Seeweb e annota il nome remoto."""
+    # 1. coppia locale
+    get_or_generate_keys()
+
+    # 2. chiave pubblica
+    _, public_key_path = get_or_generate_keys()
+    with open(public_key_path, 'r', encoding='utf-8') as f:
+        public_key = f.read().strip()
+
+    # 3. client API Seeweb
+    client = seeweb_adaptor.client()
+
+    # 4. Controlla chiave registrata
+    prefix = f'sky-key-{common_utils.get_user_hash()}'
+    remote_name = None
+    for k in client.sshkeys.list():
+        if k['public_key'].strip() == public_key:
+            remote_name = k['name']          # già presente
+            break
+
+    # 5. non esiste, scegli un nome unico e la crei
+    if remote_name is None:
+        suffix = 1
+        remote_name = prefix
+        existing_names = {k['name'] for k in client.sshkeys.list()}
+        while remote_name in existing_names:
+            suffix += 1
+            remote_name = f'{prefix}-{suffix}'
+        client.sshkeys.create(name=remote_name, public_key=public_key)
+
+    # 6. Mettiamo il nome remoto nel cluster-config (come per Lambda)
+    config['auth']['remote_key_name'] = remote_name
+    return config
 
 def setup_ibm_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
     """ registers keys if they do not exist in sky folder
@@ -530,6 +567,7 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
     config['auth']['ssh_private_key'] = private_key_path
 
     return config
+
 
 
 # ---------------------------------- RunPod ---------------------------------- #

@@ -1,0 +1,8 @@
+resources:
+  cloud: seeweb
+  instance_type: <INSERISCI_INSTANCE_TYPE_VALIDO>
+  # accelerators: <es. "A100:1">  # opzionale, se serve
+  # region: <es. "milano">        # opzionale, se vuoi forzare la regione
+
+run: |
+  echo "Hello from Seeweb!" 

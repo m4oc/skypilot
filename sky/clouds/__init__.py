@@ -31,6 +31,7 @@ from sky.clouds.scp import SCP
 from sky.clouds.ssh import SSH
 from sky.clouds.vast import Vast
 from sky.clouds.vsphere import Vsphere
+from sky.clouds.seeweb import Seeweb
 
 __all__ = [
     'IBM',
@@ -49,6 +50,7 @@ __all__ = [
     'OCI',
     'Vsphere',
     'Kubernetes',
+    'Seeweb',
     'SSH',
     'CloudImplementationFeatures',
     'Region',

@@ -1007,6 +1007,7 @@ def _add_auth_to_cluster_config(cloud: clouds.Cloud, tmp_yaml_path: str):
             clouds.Azure,
             clouds.DO,
             clouds.Nebius,
+            clouds.Seeweb,
     )):
         config = auth.configure_ssh_info(config)
     elif isinstance(cloud, clouds.GCP):
@@ -1025,6 +1026,8 @@ def _add_auth_to_cluster_config(cloud: clouds.Cloud, tmp_yaml_path: str):
         config = auth.setup_fluidstack_authentication(config)
     elif isinstance(cloud, clouds.Hyperbolic):
         config = auth.setup_hyperbolic_authentication(config)
+    elif isinstance(cloud, clouds.Seeweb):
+        config = auth.setup_seeweb_authentication(config)
     else:
         assert False, cloud
     common_utils.dump_yaml(tmp_yaml_path, config)
@@ -1799,6 +1802,60 @@ def _query_cluster_status_via_cloud_api(
             cluster_name_on_cloud,
             tag_filter_for_cluster(cluster_name_on_cloud), region, zone)
     return node_statuses
+
+
+# ---------------------------------------------------------------------
+# SEEWEB – query cluster status
+# ---------------------------------------------------------------------
+def _query_status_seeweb(                      # ← nuovo nome, non "fluffycloud"
+        cluster: str,
+        ray_config: Dict[str, Any],
+) -> List[status_lib.ClusterStatus]:
+    """Restituisce la lista di stati (uno per nodo) del cluster Seeweb.
+
+    • Usa il campo `notes` degli ECS server per riconoscere a quale cluster
+      appartiene un'istanza  (*notes == cluster_name_on_cloud*).
+    • Traduce gli stati Seeweb → enum ClusterStatus di SkyPilot.
+    """
+    try:
+        import ecsapi
+        import configparser
+        from pathlib import Path
+        
+        # Leggi API key
+        parser = configparser.ConfigParser()
+        parser.read(Path('~/.seeweb_cloud/seeweb_keys').expanduser())
+        api_key = parser['DEFAULT']['api_key'].strip()
+        
+        client = ecsapi.Api(token=api_key)
+    except Exception as e:                     # pragma: no cover
+        with ux_utils.print_exception_no_traceback():
+            raise RuntimeError(
+                f'Impossibile interrogare Seeweb: {e}. '
+                'Verifica che SEEWEB_TOKEN sia valido.') from e
+
+    # --- 2. Filtra le istanze del cluster ------------------------------------
+    servers = [s for s in client.servers.list()            # GET /servers
+               if s.get('notes') == cluster]
+
+    if not servers:
+        # Nessuna istanza con quel tag → cluster terminato
+        return [global_user_state.ClusterStatus.TERMINATED]
+
+    # --- 3. Mappa stato Seeweb → ClusterStatus -------------------------------
+    translate = {
+        'Running':      global_user_state.ClusterStatus.UP,
+        'Booting':      global_user_state.ClusterStatus.INIT,
+        'PoweringOn':   global_user_state.ClusterStatus.INIT,
+        'Off':          global_user_state.ClusterStatus.STOPPED,
+        'PoweringOff':  global_user_state.ClusterStatus.STOPPED,
+        'Error':        global_user_state.ClusterStatus.ERROR,
+    }
+
+    return [translate.get(s['status'],
+                          global_user_state.ClusterStatus.ERROR)
+            for s in servers]
+
 
 
 def check_can_clone_disk_and_override_task(

@@ -140,6 +140,7 @@ Kubernetes = clouds.Kubernetes
 K8s = Kubernetes
 OCI = clouds.OCI
 Paperspace = clouds.Paperspace
+Seeweb = clouds.Seeweb
 RunPod = clouds.RunPod
 Vast = clouds.Vast
 Vsphere = clouds.Vsphere
@@ -156,6 +157,7 @@ __all__ = [
     'IBM',
     'Kubernetes',
     'K8s',
+    'Seeweb',
     'Lambda',
     'OCI',
     'Paperspace',

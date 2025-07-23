@@ -1,0 +1,76 @@
+cluster_name: {{ cluster_name_on_cloud }}
+
+max_workers: {{ num_nodes - 1 }}
+upscaling_speed: {{ num_nodes - 1 }}
+idle_timeout_minutes: 60
+
+provider:
+  type: external
+  module: sky.prvision.seeweb
+  region: "{{ region }}"
+
+auth:
+  ssh_user: root
+  ssh_private_key: {{ ssh_private_key }}
+
+available_node_types:
+  ray_head_default:
+    resources: {}
+    node_config:
+      plan: {{ instance_type }}          # e.g. "eCS4" or "gCS4"
+      image: {{ image_id }}              # e.g. "ubuntu-2204"
+      location: {{ region }}             # e.g. "it-mi2"
+      {% if custom_resources is not none %}
+      gpu: {{ custom_resources.gpu }}
+      gpu_label: "{{ custom_resources.gpu_label }}"
+      {% endif %}
+      disk: {{ disk_size }}              # GB, optional
+
+head_node_type: ray_head_default
+
+# —–– Mount wheel, Ray YAML e credenziali –––
+file_mounts: {
+  # >>> BEGIN key mount
+  "~/.seeweb_cloud/seeweb_keys": "~/.seeweb_cloud/seeweb_keys",
+  # <<< END key mount
+  "{{sky_ray_yaml_remote_path}}": "{{sky_ray_yaml_local_path}}",
+  "{{sky_remote_path}}/{{sky_wheel_hash}}": "{{sky_local_path}}",
+  ...
+}
+
+
+rsync_exclude: []
+
+setup_commands:
+  - |
+    sudo systemctl stop unattended-upgrades || true
+    sudo systemctl disable unattended-upgrades || true
+    {{ conda_installation_commands }}
+    {{ ray_skypilot_installation_commands }}
+
+head_start_ray_commands:
+  - export SKYPILOT_NUM_GPUS=0 && which nvidia-smi >/dev/null && \
+    SKYPILOT_NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l); \
+    ray stop; RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 \
+    ray start --disable-usage-stats --head \
+      --port={{ ray_port }} --dashboard-port={{ ray_dashboard_port }} \
+      --object-manager-port=8076 \
+      --autoscaling-config=~/ray_bootstrap_config.yaml \
+      --num-gpus=$SKYPILOT_NUM_GPUS --temp-dir {{ ray_temp_dir }} || exit 1
+
+worker_start_ray_commands:
+  - SKYPILOT_NUM_GPUS=0 && which nvidia-smi >/dev/null && \
+    SKYPILOT_NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l); \
+    ray stop; RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 \
+    ray start --disable-usage-stats \
+      --address=$RAY_HEAD_IP:{{ ray_port }} \
+      --object-manager-port=8076 \
+      --num-gpus=$SKYPILOT_NUM_GPUS --temp-dir {{ ray_temp_dir }} || exit 1
+
+head_node: {}
+worker_nodes: {}
+
+head_setup_commands: []
+worker_setup_commands: []
+cluster_synced_files: []
+file_mounts_sync_continuously: False
