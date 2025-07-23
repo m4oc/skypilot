@@ -70,12 +70,11 @@ def check_capabilities(
     hide_workspace_str = (available_workspaces == [
         constants.SKYPILOT_DEFAULT_WORKSPACE
     ])
-    initial_hint = 'Checking credentials to enable infra for SkyPilot!!!.'
+    initial_hint = 'Checking credentials to enable infra for SkyPilot.'
     if len(available_workspaces) > 1:
         initial_hint = (f'Checking credentials to enable infra for SkyPilot!!! '
                         f'(Workspaces: {", ".join(available_workspaces)}).')
     echo(initial_hint)
-    echo("hey funziono")
     if capabilities is None:
         capabilities = sky_cloud.ALL_CAPABILITIES
     assert capabilities is not None

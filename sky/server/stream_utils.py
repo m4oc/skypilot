@@ -206,7 +206,6 @@ def stream_response(
     request_id: str, logs_path: pathlib.Path,
     background_tasks: fastapi.BackgroundTasks
 ) -> fastapi.responses.StreamingResponse:
-
     async def on_disconnect():
         logger.info(f'User terminated the connection for request '
                     f'{request_id}')

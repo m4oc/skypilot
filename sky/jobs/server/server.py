@@ -16,7 +16,6 @@ logger = sky_logging.init_logger(__name__)
 
 router = fastapi.APIRouter()
 
-
 @router.post('/launch')
 async def launch(request: fastapi.Request,
                  jobs_launch_body: payloads.JobsLaunchBody) -> None:
@@ -83,6 +82,7 @@ async def logs(
         request_id=request_task.request_id,
         logs_path=request_task.log_path,
         background_tasks=background_tasks,
+
     )
 
 

@@ -1,7 +1,7 @@
-"""FluffyCloud service catalog.
+"""Seeweb service catalog.
 
 This module loads the service catalog file and can be used to
-query instance types and pricing information for FluffyCloud.
+query instance types and pricing information for Seeweb.
 """
 
 import typing
