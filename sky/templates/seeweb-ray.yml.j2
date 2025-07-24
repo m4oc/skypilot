@@ -35,7 +35,10 @@ file_mounts: {
   # <<< END key mount
   "{{sky_ray_yaml_remote_path}}": "{{sky_ray_yaml_local_path}}",
   "{{sky_remote_path}}/{{sky_wheel_hash}}": "{{sky_local_path}}",
-  ...
+{%- for remote_path, local_path in credentials.items() %}
+  "{{remote_path}}": "{{local_path}}",
+{%- endfor %}
+  "~/.ssh/sky-cluster-key": "{{ssh_private_key}}",
 }
 
 

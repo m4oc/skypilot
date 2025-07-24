@@ -28,7 +28,6 @@ class Seeweb(clouds.Cloud):
     
     _REPR = 'Seeweb'
     _CLOUD_UNSUPPORTED_FEATURES = {
-        clouds.CloudImplementationFeatures.STOP: 'Stopping not supported.',
         clouds.CloudImplementationFeatures.MULTI_NODE: 'Multi-node not supported.',
         clouds.CloudImplementationFeatures.CUSTOM_DISK_TIER: 'Custom disk tiers not supported.',
         clouds.CloudImplementationFeatures.STORAGE_MOUNTING: 'Storage mounting not supported.',
@@ -151,12 +150,25 @@ class Seeweb(clouds.Cloud):
                 'gpu_label': accelerator_name
             }
         
+        # Seeweb uses pre-configured images, default is ubuntu-2204
+        # Custom images are not supported (see _CLOUD_UNSUPPORTED_FEATURES)
+        image_id = 'ubuntu-2204'
+        if resources.image_id is not None:
+            # Even though custom images aren't supported, we should handle 
+            # the case where someone tries to specify one and provide a clear error
+            if None in resources.image_id:
+                image_id = resources.image_id[None]
+            else:
+                assert region.name in resources.image_id, resources.image_id
+                image_id = resources.image_id[region.name]
+        
         return {
             'instance_type': resources.instance_type,
             'region': region.name,
             'cluster_name': cluster_name,
             'custom_resources': custom_resources,
             'seeweb_gpu_config': seeweb_gpu_config,
+            'image_id': image_id,
         }
 
     @classmethod

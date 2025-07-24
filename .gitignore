@@ -3,7 +3,7 @@
 **/__pycache__/
 *.egg-info/
 *.eggs/
-
+.venv/
 docs/build/
 docs/_build/
 build/

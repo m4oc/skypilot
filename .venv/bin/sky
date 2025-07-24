@@ -1,4 +1,4 @@
-#!/root/SeewebSky/.venv/bin/python
+#!/root/SeewebSky/.venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

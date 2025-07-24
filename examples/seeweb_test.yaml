@@ -1,8 +1,8 @@
 resources:
   cloud: seeweb
-  instance_type: <INSERISCI_INSTANCE_TYPE_VALIDO>
-  # accelerators: <es. "A100:1">  # opzionale, se serve
-  # region: <es. "milano">        # opzionale, se vuoi forzare la regione
+  instance_type: eCS1
+  # accelerators: "A100:1"  # opzionale, se serve
+  region: bg-sof1        # testa specificatamente bg-sof1
 
 run: |
   echo "Hello from Seeweb!" 

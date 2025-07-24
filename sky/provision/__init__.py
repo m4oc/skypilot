@@ -6,7 +6,7 @@ providers supported by SkyPilot need to follow.
 import functools
 import inspect
 import typing
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 from sky import models
 from sky import sky_logging
@@ -26,6 +26,7 @@ from sky.provision import nebius
 from sky.provision import oci
 from sky.provision import runpod
 from sky.provision import scp
+from sky.provision import seeweb
 from sky.provision import ssh
 from sky.provision import vast
 from sky.provision import vsphere
@@ -56,10 +57,15 @@ def _route_to_cloud_impl(func):
         module = globals().get(module_name)
         assert module is not None, f'Unknown provider: {module_name}'
 
-        impl = getattr(module, func.__name__, None)
+        impl: Callable = getattr(module, func.__name__, None)
+        print(f"DEBUG16:Impl: {impl} {func.__name__} {module_name} file: {inspect.getfile(impl)}")
         if impl is not None:
-            return impl(*args, **kwargs)
-
+            print(f"DEBUG17:Impl found")
+            res = impl(*args, **kwargs)
+            print(f"DEBUG17:Res: {res}")
+            return res
+        else:
+            print(f"DEBUG18:No impl")
         # If implementation does not exist, fall back to default implementation
         return func(provider_name, *args, **kwargs)
 
