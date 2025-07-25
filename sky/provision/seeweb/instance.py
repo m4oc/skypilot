@@ -11,6 +11,7 @@ from typing import Any,Dict, List, Optional
 from sky import sky_logging
 from sky.adaptors import seeweb as seeweb_adaptor
 from sky.provision.common import ProvisionConfig
+from sky.utils import status_lib
 
 logger = sky_logging.init_logger(__name__)
 
@@ -137,7 +138,7 @@ class SeewebNodeProvider:
         # DEBUG: ALEX PATCH Falso Vero Dopo patch
         _, action_id = self.ecs.create_server(create_request, check_if_can_create=False)   # dict con action_id
         print(f"DEBUG22:Action ID: {action_id}")
-        self.ecs.watch_action(action_id, max_retries=60, fetch_every=10)
+        self.ecs.watch_action(action_id, max_retry=180, fetch_every=5)
 
     def _power_on(self, server_id: str):
         self.ecs.turn_on_server(server_id)
@@ -195,13 +196,12 @@ def terminate_instances(
 
 
 def wait_instances(
-    cluster_name_on_cloud: str,
-    provider_config: Dict[str, Any],
-    desired_state: str = "Booted",
+    region: str, cluster_name_on_cloud: str,
+                   state: Optional[status_lib.ClusterStatus]
 ) -> None:
     """Wait for instances to reach desired state."""
     provider = SeewebNodeProvider(provider_config, cluster_name_on_cloud)
-    provider.wait_instances(desired_state)
+    provider.wait_instances(state)
 
 
 def query_instances(
