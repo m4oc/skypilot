@@ -1006,7 +1006,6 @@ def _add_auth_to_cluster_config(cloud: clouds.Cloud, tmp_yaml_path: str):
             clouds.Azure,
             clouds.DO,
             clouds.Nebius,
-            clouds.Seeweb,
     )):
         config = auth.configure_ssh_info(config)
     elif isinstance(cloud, clouds.GCP):
@@ -1026,7 +1025,10 @@ def _add_auth_to_cluster_config(cloud: clouds.Cloud, tmp_yaml_path: str):
     elif isinstance(cloud, clouds.Hyperbolic):
         config = auth.setup_hyperbolic_authentication(config)
     elif isinstance(cloud, clouds.Seeweb):
+        print("DEBUG40: Prima di setup_seeweb_authentication")
+        print(f"DEBUG41: Config prima: {config.get('auth', {})}")
         config = auth.setup_seeweb_authentication(config)
+        print(f"DEBUG42: Config dopo: {config.get('auth', {})}")
     else:
         assert False, cloud
     common_utils.dump_yaml(tmp_yaml_path, config)

@@ -212,6 +212,9 @@ def setup_runtime_on_cluster(cluster_name: str, setup_commands: List[str],
     # compute the digest
     digests = []
     for cmd in setup_commands:
+        # DEBUG bashrc: Ensure /root/.bashrc exists before running setup commands
+        setup_commands = ['touch ~/.bashrc']
+        print(f"DEBUG 70BASHRC : Figli di puttana quelli di Skypilot")
         digests.append(hashlib.sha256(cmd.encode()).digest())
     hasher = hashlib.sha256()
     for d in digests:
@@ -449,7 +452,7 @@ def start_ray_on_worker_nodes(cluster_name: str, no_restart: bool,
             log_path=log_path_abs,
             # Source bashrc for starting ray cluster to make sure actors started
             # by ray will have the correct PATH.
-            source_bashrc=True)
+            source_bashrc=True) 
 
     num_threads = subprocess_utils.get_parallel_threads(
         cluster_info.provider_name)

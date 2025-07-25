@@ -10,7 +10,7 @@ import time
 from typing import Any,Dict, List, Optional
 from sky import sky_logging
 from sky.adaptors import seeweb as seeweb_adaptor
-from sky.provision.common import ProvisionConfig
+from sky.provision.common import ProvisionConfig, ProvisionRecord, ClusterInfo, InstanceInfo
 from sky.utils import status_lib
 
 logger = sky_logging.init_logger(__name__)
@@ -86,7 +86,7 @@ class SeewebNodeProvider:
     # 5. query_instances
     # --------------------------------------------------------------------- #
     def query_instances(self) -> Dict[str, str]:
-        print(f"DEBUG17:Query instances: {self._query_cluster_nodes()}")
+        print(f"DEBUG25:Query instances: {self._query_cluster_nodes()}")
         return {srv.name: srv.status for srv in self._query_cluster_nodes()}
 
     # --------------------------------------------------------------------- #
@@ -118,12 +118,14 @@ class SeewebNodeProvider:
 
     def _create_server(self):
         """POST /servers con payload completo."""
+        print(f"DEBUG50: authentication_config = {self.config.authentication_config}")
+        print(f"DEBUG51: node_config = {self.config.node_config}")
         payload = {
             "plan":     self.config.node_config.get("plan"),       # es. eCS4
             "image":    self.config.node_config.get("image"),      # es. ubuntu-2204
             "location": self.config.node_config.get("location"),   # es. it-mi2
             "notes":    self.cluster_name,
-            "ssh_key": self.config.node_config.get("auth", {}).get("remote_key_name"),  # chiave remota
+            "ssh_key": self.config.authentication_config.get("remote_key_name"),  # chiave remota
         }
 
         # GPU opzionale
@@ -165,10 +167,27 @@ class SeewebNodeProvider:
 # =============================================================================
 
 def run_instances(region: str, cluster_name_on_cloud: str,
-                  config: ProvisionConfig) -> None:
+                  config: ProvisionConfig) -> ProvisionRecord:
     """Run instances for Seeweb cluster."""
     provider = SeewebNodeProvider(config, cluster_name_on_cloud)
     provider.run_instances(config, config.count)
+    
+    # Trova il nodo head (per ora prendiamo il primo server del cluster)
+    cluster_nodes = provider._query_cluster_nodes()
+    if not cluster_nodes:
+        raise RuntimeError(f"No nodes found for cluster {cluster_name_on_cloud}")
+    
+    head_node = cluster_nodes[0]
+    
+    return ProvisionRecord(
+        provider_name="Seeweb",
+        region=region,
+        zone=None,  # Seeweb non usa zone
+        cluster_name=cluster_name_on_cloud,
+        head_instance_id=head_node.name,
+        resumed_instance_ids=[],  # Per ora vuoto
+        created_instance_ids=[node.name for node in cluster_nodes],
+    )
 
 
 def stop_instances(
@@ -197,11 +216,39 @@ def terminate_instances(
 
 def wait_instances(
     region: str, cluster_name_on_cloud: str,
-                   state: Optional[status_lib.ClusterStatus]
+    state: Optional[status_lib.ClusterStatus],
 ) -> None:
     """Wait for instances to reach desired state."""
-    provider = SeewebNodeProvider(provider_config, cluster_name_on_cloud)
-    provider.wait_instances(state)
+    print(f"DEBUG60: wait_instances called with state={state}")
+    
+    # Mappa ClusterStatus a stringa Seeweb
+    if state == status_lib.ClusterStatus.UP:
+        seeweb_state = "Booted"
+    elif state == status_lib.ClusterStatus.STOPPED:
+        seeweb_state = "Off"
+    elif state is None:
+        seeweb_state = "Terminated"  # Per terminazione
+    else:
+        seeweb_state = "Booted"  # Default fallback
+    
+    # Crea direttamente il client Seeweb e aspetta
+    client = seeweb_adaptor.client()
+    deadline = time.time() + _MAX_BOOT_TIME
+    while time.time() < deadline:
+        cluster_nodes = [s for s in client.fetch_servers() if s.notes == cluster_name_on_cloud]
+        if not cluster_nodes:
+            print(f"DEBUG62: No nodes found for cluster {cluster_name_on_cloud}")
+            time.sleep(_POLL_INTERVAL)
+            continue
+            
+        states = {srv.status for srv in cluster_nodes}
+        print(f"DEBUG63: Current states: {states}, waiting for: {seeweb_state}")
+        if states <= {seeweb_state}:
+            print(f"DEBUG64: All nodes reached state {seeweb_state}")
+            return
+        time.sleep(_POLL_INTERVAL)
+    
+    raise TimeoutError(f"Nodi non sono tutti in stato {seeweb_state} entro il timeout")
 
 
 def query_instances(
@@ -233,6 +280,49 @@ def query_instances(
         result[name] = status_map.get(seeweb_status, status_lib.ClusterStatus.UNKNOWN)
     
     return result
+
+
+def get_cluster_info(
+    region: str,
+    cluster_name_on_cloud: str,
+    provider_config: Optional[Dict[str, Any]] = None,
+) -> 'ClusterInfo':
+    """Get cluster information for Seeweb cluster."""
+    # Usa il client Seeweb per ottenere le istanze del cluster
+    client = seeweb_adaptor.client()
+    cluster_nodes = [s for s in client.fetch_servers() if s.notes == cluster_name_on_cloud]
+    
+    if not cluster_nodes:
+        raise RuntimeError(f"No instances found for cluster {cluster_name_on_cloud}")
+    
+    instances = {}
+    head_instance = None
+    
+    for node in cluster_nodes:
+        # Per Seeweb, prendiamo il primo nodo come head
+        if head_instance is None:
+            head_instance = node.name
+            
+        # Ottieni l'IP del server (Seeweb usa l'attributo 'ipv4')
+        external_ip = node.ipv4
+        internal_ip = external_ip  # Per Seeweb, IP interno = IP esterno
+        
+        instances[node.name] = [
+            InstanceInfo(
+                instance_id=node.name,
+                internal_ip=internal_ip,
+                external_ip=external_ip,
+                ssh_port=22,
+                tags={},
+            )
+        ]
+    
+    return ClusterInfo(
+        instances=instances,
+        head_instance_id=head_instance,
+        provider_name='Seeweb',
+        provider_config=provider_config,
+    )
 
 
 def open_ports(

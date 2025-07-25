@@ -723,9 +723,15 @@ def post_provision_runtime_setup(
             logger.error(
                 ux_utils.error_message(
                     'Failed to set up SkyPilot runtime on cluster.',
-                    provision_logging.config.log_path))
+                    provision_logging.config.log_path),
+                print(f"DEBUG25: {traceback.format_exc()}"),
+                print(f"DEBUG26: {provision_logging.config.log_path}"),
+                )
+                
+                    
+
             if sky_logging.logging_enabled(logger, sky_logging.DEBUG):
-                print("DEBUG23:Stacktrace:")
+                print("DEBUG24:Stacktrace:")
                 logger.debug(f'Stacktrace:\n{traceback.format_exc()}')
             with ux_utils.print_exception_no_traceback():
                 raise

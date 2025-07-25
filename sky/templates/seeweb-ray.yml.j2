@@ -45,11 +45,12 @@ file_mounts: {
 rsync_exclude: []
 
 setup_commands:
-  - |
-    sudo systemctl stop unattended-upgrades || true
-    sudo systemctl disable unattended-upgrades || true
+  - touch ~/.bashrc;
+    sudo systemctl stop unattended-upgrades || true;
+    sudo systemctl disable unattended-upgrades || true;
     {{ conda_installation_commands }}
     {{ ray_skypilot_installation_commands }}
+
 
 head_start_ray_commands:
   - export SKYPILOT_NUM_GPUS=0 && which nvidia-smi >/dev/null && \
@@ -73,7 +74,9 @@ worker_start_ray_commands:
 head_node: {}
 worker_nodes: {}
 
-head_setup_commands: []
-worker_setup_commands: []
+head_setup_commands:
+  - touch /root/.bashrc
+worker_setup_commands:
+  - touch /root/.bashrc
 cluster_synced_files: []
 file_mounts_sync_continuously: False
