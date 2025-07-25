@@ -17,10 +17,8 @@ if typing.TYPE_CHECKING:  # evitano import ciclici nei type-checkers
     from sky.volumes import volume as volume_lib
     from sky.utils import status_lib
 
-# ---------- percorso del file-chiave in stile Lambda -----------------
+# api_key = <TOKEN>  ← You can find this in the Seeweb panel: Compute → API Token → New Token
 _SEEWEB_KEY_FILE = '~/.seeweb_cloud/seeweb_keys'
-# (il contenuto: ini-like)
-#   api_key = <TOKEN>
 
 @registry.CLOUD_REGISTRY.register
 class Seeweb(clouds.Cloud):
