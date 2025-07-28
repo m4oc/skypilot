@@ -2,7 +2,7 @@ cluster_name: {{ cluster_name_on_cloud }}
 
 max_workers: {{ num_nodes - 1 }}
 upscaling_speed: {{ num_nodes - 1 }}
-idle_timeout_minutes: 60
+idle_timeout_minutes: 5
 
 provider:
   type: external
@@ -10,7 +10,7 @@ provider:
   region: "{{ region }}"
 
 auth:
-  ssh_user: root
+  ssh_user: ecuser
   ssh_private_key: {{ ssh_private_key }}
 
 available_node_types:
@@ -28,7 +28,7 @@ available_node_types:
 
 head_node_type: ray_head_default
 
-# —–– Mount wheel, Ray YAML e credenziali –––
+# ––– Mount wheel, Ray YAML e credenziali –––
 file_mounts: {
   # >>> BEGIN key mount
   "~/.seeweb_cloud/seeweb_keys": "~/.seeweb_cloud/seeweb_keys",
@@ -41,42 +41,98 @@ file_mounts: {
   "~/.ssh/sky-cluster-key": "{{ssh_private_key}}",
 }
 
+# DEBUG: Credentials info
+# Credentials count: {{ credentials|length }}
+# Credentials keys: {{ credentials.keys()|list }}
+# SSH user: {{ ssh_user }}
+# SSH private key: {{ ssh_private_key }}
 
 rsync_exclude: []
 
+# -------------------------------------------------------------------
+# Setup di base: conda + Ray (default originale)
+# -------------------------------------------------------------------
 setup_commands:
-  - touch ~/.bashrc;
+  - |
+    echo "[DEBUG_SEEWEB] === SETUP COMMANDS START ==="
+    echo "[DEBUG_SEEWEB] Timestamp: $(date)"
+    echo "[DEBUG_SEEWEB] Hostname: $(hostname)"
+    echo "[DEBUG_SEEWEB] User: $(whoami)"
+    echo "[DEBUG_SEEWEB] PWD: $(pwd)"
+    echo "[DEBUG_SEEWEB] === EXECUTING COMMANDS ==="
+    touch ~/.bashrc;
+    echo "[DEBUG_SEEWEB] bashrc touched"
+    # Fix hostname resolution
+    echo "127.0.0.1 $(hostname)" | sudo tee -a /etc/hosts || true;
+    echo "127.0.0.1 localhost" | sudo tee -a /etc/hosts || true;
+    echo "[DEBUG_SEEWEB] hostname fixed"
     sudo systemctl stop unattended-upgrades || true;
+    echo "[DEBUG_SEEWEB] unattended-upgrades stopped"
     sudo systemctl disable unattended-upgrades || true;
+    echo "[DEBUG_SEEWEB] unattended-upgrades disabled"
+    echo "[DEBUG_SEEWEB] === CONDA INSTALLATION ==="
     {{ conda_installation_commands }}
+    echo "[DEBUG_SEEWEB] === RAY INSTALLATION ==="
     {{ ray_skypilot_installation_commands }}
+    echo "[DEBUG_SEEWEB] === SETUP COMMANDS END ==="
+    echo "[DEBUG_SEEWEB] === SETUP COMMANDS END ==="
 
-
+# ---------------------- AVVIO RAY HEAD -----------------------------
 head_start_ray_commands:
-  - export SKYPILOT_NUM_GPUS=0 && which nvidia-smi >/dev/null && \
-    SKYPILOT_NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l); \
-    ray stop; RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 \
-    ray start --disable-usage-stats --head \
-      --port={{ ray_port }} --dashboard-port={{ ray_dashboard_port }} \
-      --object-manager-port=8076 \
-      --autoscaling-config=~/ray_bootstrap_config.yaml \
-      --num-gpus=$SKYPILOT_NUM_GPUS --temp-dir {{ ray_temp_dir }} || exit 1
+  - |
+    retry_ray() {
+      local n=0; local max=30
+      until [ $n -ge $max ]; do
+        # Conta GPU solo se nvidia-smi esiste
+        export SKYPILOT_NUM_GPUS=0
+        command -v nvidia-smi >/dev/null 2>&1 && \
+          SKYPILOT_NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)
 
+        ray stop || true                               # <-- senza sudo
+        RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 \
+        ray start --disable-usage-stats --head \
+          --port={{ ray_port }} --dashboard-port={{ ray_dashboard_port }} \
+          --object-manager-port=8076 \
+          --autoscaling-config=~/ray_bootstrap_config.yaml \
+          --num-gpus=$SKYPILOT_NUM_GPUS --temp-dir {{ ray_temp_dir }} && break
+
+        echo "[head] Ray non è partito ($((++n))/$max), ritento fra 5 s…"
+        sleep 5
+      done
+      [ $n -eq $max ] && { echo "Ray head KO"; exit 1; }
+    }
+    retry_ray
+
+# ---------------------- AVVIO RAY WORKER ---------------------------
 worker_start_ray_commands:
-  - SKYPILOT_NUM_GPUS=0 && which nvidia-smi >/dev/null && \
-    SKYPILOT_NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l); \
-    ray stop; RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 \
-    ray start --disable-usage-stats \
-      --address=$RAY_HEAD_IP:{{ ray_port }} \
-      --object-manager-port=8076 \
-      --num-gpus=$SKYPILOT_NUM_GPUS --temp-dir {{ ray_temp_dir }} || exit 1
+  - |
+    retry_ray() {
+      local n=0; local max=30
+      until [ $n -ge $max ]; do
+        SKYPILOT_NUM_GPUS=0
+        command -v nvidia-smi >/dev/null 2>&1 && \
+          SKYPILOT_NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)
+
+        ray stop || true                               # <-- senza sudo
+        RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 \
+        ray start --disable-usage-stats \
+          --address=$RAY_HEAD_IP:{{ ray_port }} \
+          --object-manager-port=8076 \
+          --num-gpus=$SKYPILOT_NUM_GPUS --temp-dir {{ ray_temp_dir }} && break
+
+        echo "[worker] Ray non è partito ($((++n))/$max), ritento fra 5 s…"
+        sleep 5
+      done
+      [ $n -eq $max ] && { echo "Ray worker KO"; exit 1; }
+    }
+    retry_ray
+
 
 head_node: {}
 worker_nodes: {}
 
-head_setup_commands:
-  - touch /root/.bashrc
-worker_setup_commands:
-  - touch /root/.bashrc
+head_setup_commands: []
+worker_setup_commands: []
+
 cluster_synced_files: []
 file_mounts_sync_continuously: False

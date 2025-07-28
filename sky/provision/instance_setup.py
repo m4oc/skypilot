@@ -207,14 +207,18 @@ def setup_runtime_on_cluster(cluster_name: str, setup_commands: List[str],
                              cluster_info: common.ClusterInfo,
                              ssh_credentials: Dict[str, Any]) -> None:
     """Setup internal dependencies."""
+    print(f"[DEBUG_SETUP] === SETUP_RUNTIME_ON_CLUSTER START ===")
+    print(f"[DEBUG_SETUP] Cluster: {cluster_name}")
+    print(f"[DEBUG_SETUP] Number of setup commands: {len(setup_commands)}")
+    for i, cmd in enumerate(setup_commands):
+        print(f"[DEBUG_SETUP] Command {i+1}: {cmd[:100]}...")
+    print(f"[DEBUG_SETUP] === SETUP_RUNTIME_ON_CLUSTER END ===")
+    
     _hint_worker_log_path(cluster_name, cluster_info,
                           'setup_runtime_on_cluster')
     # compute the digest
     digests = []
     for cmd in setup_commands:
-        # DEBUG bashrc: Ensure /root/.bashrc exists before running setup commands
-        setup_commands = ['touch ~/.bashrc']
-        print(f"DEBUG 70BASHRC : Figli di puttana quelli di Skypilot")
         digests.append(hashlib.sha256(cmd.encode()).digest())
     hasher = hashlib.sha256()
     for d in digests:
@@ -223,7 +227,10 @@ def setup_runtime_on_cluster(cluster_name: str, setup_commands: List[str],
 
     @_auto_retry()
     def _setup_node(runner: command_runner.CommandRunner, log_path: str):
-        for cmd in setup_commands:
+        print(f"[DEBUG_SETUP_NODE] === EXECUTING SETUP COMMANDS ===")
+        for i, cmd in enumerate(setup_commands):
+            print(f"[DEBUG_SETUP_NODE] Executing command {i+1}/{len(setup_commands)}")
+            print(f"[DEBUG_SETUP_NODE] Command: {cmd[:200]}...")
             returncode, stdout, stderr = runner.run(
                 cmd,
                 stream_logs=False,
@@ -232,6 +239,11 @@ def setup_runtime_on_cluster(cluster_name: str, setup_commands: List[str],
                 # Installing dependencies requires source bashrc to access
                 # conda.
                 source_bashrc=True)
+            print(f"[DEBUG_SETUP_NODE] Command {i+1} completed with return code: {returncode}")
+            if stdout:
+                print(f"[DEBUG_SETUP_NODE] stdout: {stdout[:500]}...")
+            if stderr:
+                print(f"[DEBUG_SETUP_NODE] stderr: {stderr[:500]}...")
             retry_cnt = 0
             while returncode == 255 and retry_cnt < _MAX_RETRY:
                 # Got network connection issue occur during setup. This could
@@ -343,7 +355,7 @@ def ray_worker_start_command(custom_resource: Optional[str],
 
     cmd = (
         'RAY_SCHEDULER_EVENTS=0 RAY_DEDUP_LOGS=0 '
-        f'{constants.SKY_RAY_CMD} start --disable-usage-stats {ray_options} || '
+        f'python3 -m ray start --disable-usage-stats {ray_options} || '
         'exit 1;' + _RAY_PRLIMIT)
     if no_restart:
         # We do not use ray status to check whether ray is running, because
@@ -356,7 +368,7 @@ def ray_worker_start_command(custom_resource: Optional[str],
             'grep "gcs-address=${SKYPILOT_RAY_HEAD_IP}:${SKYPILOT_RAY_PORT}" '
             f'|| {{ {cmd} }}')
     else:
-        cmd = f'{constants.SKY_RAY_CMD} stop; ' + cmd
+        cmd = f'python3 -m ray stop || true; ' + cmd
     return cmd
 
 

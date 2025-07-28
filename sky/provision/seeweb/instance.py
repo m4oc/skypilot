@@ -97,9 +97,82 @@ class SeewebNodeProvider:
         while time.time() < deadline:
             states = {srv.status for srv in self._query_cluster_nodes()}
             if states <= {desired_state}:
+                # Se tutti i server sono Booted, attendi che siano veramente stabili
+                if desired_state == "Booted":
+                    logger.info("Server in stato Booted, verifico stabilità...")
+                    if self._wait_for_all_servers_stable():
+                        logger.info("Tutti i server sono stabili")
+                        return
+                    else:
+                        logger.warning("Server non ancora stabili, continuo ad attendere...")
+                        time.sleep(_POLL_INTERVAL)
+                        continue
                 return
             time.sleep(_POLL_INTERVAL)
         raise TimeoutError(f"Nodi non sono tutti in stato {desired_state} entro il timeout")
+
+    def _wait_for_all_servers_stable(self, max_wait: int = 300) -> bool:
+        """Attende che tutti i server del cluster siano stabili."""
+        logger.info("Verifico stabilità di tutti i server del cluster...")
+        
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            cluster_nodes = self._query_cluster_nodes()
+            all_stable = True
+            
+            for node in cluster_nodes:
+                if node.status == "Booted":
+                    # Verifica che il server sia raggiungibile via ping
+                    if not self._ping_server(node.ipv4):
+                        logger.warning(f"Server {node.name} ({node.ipv4}) non raggiungibile via ping")
+                        all_stable = False
+                        break
+                    
+                    # Verifica che SSH sia disponibile
+                    if not self._check_ssh_ready(node.ipv4):
+                        logger.warning(f"SSH non disponibile su {node.name} ({node.ipv4})")
+                        all_stable = False
+                        break
+                    
+                    logger.info(f"Server {node.name} ({node.ipv4}) è stabile")
+            
+            if all_stable:
+                logger.info("Tutti i server sono stabili")
+                # Sleep di sicurezza per permettere eventuali reboot tardivi
+                logger.info("Attendo 60 secondi per permettere eventuali reboot tardivi...")
+                time.sleep(60)
+                return True
+            
+            logger.info("Attendo che tutti i server siano stabili...")
+            time.sleep(_POLL_INTERVAL)
+        
+        logger.error("Timeout nell'attesa della stabilità dei server")
+        return False
+
+    def _ping_server(self, server_ip: str) -> bool:
+        """Verifica che il server sia raggiungibile via ping."""
+        try:
+            import subprocess
+            result = subprocess.run(['ping', '-c', '1', '-W', '5', server_ip], 
+                                  capture_output=True, timeout=10)
+            return result.returncode == 0
+        except Exception as e:
+            logger.debug(f"Errore nel ping di {server_ip}: {e}")
+            return False
+
+    def _check_ssh_ready(self, server_ip: str) -> bool:
+        """Verifica che SSH sia disponibile sul server."""
+        try:
+            import subprocess
+            result = subprocess.run([
+                'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+                '-i', '/root/.sky/clients/8f6f0399/ssh/sky-key',
+                'ecuser@' + server_ip, 'echo "SSH ready"'
+            ], capture_output=True, timeout=15)
+            return result.returncode == 0
+        except Exception as e:
+            logger.debug(f"Errore nel controllo SSH di {server_ip}: {e}")
+            return False
 
     # ------------------------------------------------------------------ #
     # 7. open_ports / cleanup_ports – Seeweb non ha security groups
@@ -244,11 +317,86 @@ def wait_instances(
         states = {srv.status for srv in cluster_nodes}
         print(f"DEBUG63: Current states: {states}, waiting for: {seeweb_state}")
         if states <= {seeweb_state}:
+            # Se tutti i server sono Booted, attendi che siano veramente stabili
+            if seeweb_state == "Booted":
+                print(f"DEBUG64: All nodes reached state {seeweb_state}, checking stability...")
+                if _wait_for_all_servers_stable_standalone(cluster_nodes):
+                    print(f"DEBUG65: All nodes are stable")
+                    return
+                else:
+                    print(f"DEBUG66: Nodes not yet stable, continuing to wait...")
+                    time.sleep(_POLL_INTERVAL)
+                    continue
             print(f"DEBUG64: All nodes reached state {seeweb_state}")
             return
         time.sleep(_POLL_INTERVAL)
     
     raise TimeoutError(f"Nodi non sono tutti in stato {seeweb_state} entro il timeout")
+
+
+def _wait_for_all_servers_stable_standalone(cluster_nodes, max_wait: int = 300) -> bool:
+    """Attende che tutti i server del cluster siano stabili (versione standalone)."""
+    print("Verifico stabilità di tutti i server del cluster...")
+    
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        all_stable = True
+        
+        for node in cluster_nodes:
+            if node.status == "Booted":
+                # Verifica che il server sia raggiungibile via ping
+                if not _ping_server_standalone(node.ipv4):
+                    print(f"Server {node.name} ({node.ipv4}) non raggiungibile via ping")
+                    all_stable = False
+                    break
+                
+                # Verifica che SSH sia disponibile
+                if not _check_ssh_ready_standalone(node.ipv4):
+                    print(f"SSH non disponibile su {node.name} ({node.ipv4})")
+                    all_stable = False
+                    break
+                
+                print(f"Server {node.name} ({node.ipv4}) è stabile")
+        
+        if all_stable:
+            print("Tutti i server sono stabili")
+            # Sleep di sicurezza per permettere eventuali reboot tardivi
+            print("Attendo 60 secondi per permettere eventuali reboot tardivi...")
+            time.sleep(60)
+            return True
+        
+        print("Attendo che tutti i server siano stabili...")
+        time.sleep(_POLL_INTERVAL)
+    
+    print("Timeout nell'attesa della stabilità dei server")
+    return False
+
+
+def _ping_server_standalone(server_ip: str) -> bool:
+    """Verifica che il server sia raggiungibile via ping (versione standalone)."""
+    try:
+        import subprocess
+        result = subprocess.run(['ping', '-c', '1', '-W', '5', server_ip], 
+                              capture_output=True, timeout=10)
+        return result.returncode == 0
+    except Exception as e:
+        print(f"Errore nel ping di {server_ip}: {e}")
+        return False
+
+
+def _check_ssh_ready_standalone(server_ip: str) -> bool:
+    """Verifica che SSH sia disponibile sul server (versione standalone)."""
+    try:
+        import subprocess
+        result = subprocess.run([
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            '-i', '/root/.sky/clients/8f6f0399/ssh/sky-key',
+            'ecuser@' + server_ip, 'echo "SSH ready"'
+        ], capture_output=True, timeout=15)
+        return result.returncode == 0
+    except Exception as e:
+        print(f"Errore nel controllo SSH di {server_ip}: {e}")
+        return False
 
 
 def query_instances(

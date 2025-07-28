@@ -69,6 +69,7 @@ install_requires = [
     'gitpython',
     'types-paramiko',
     'alembic',
+    'ecsapi>=0.1.0',  # Required for Seeweb cloud provider
 ]
 
 server_dependencies = [
@@ -179,6 +180,9 @@ extras_require: Dict[str, List[str]] = {
     'nebius': [
         'nebius>=0.2.37',
     ] + aws_dependencies,
+    'seeweb': [
+        'ecsapi>=0.1.0',
+    ],
     'hyperbolic': [],  # No dependencies needed for hyperbolic
     'server': server_dependencies,
 }
