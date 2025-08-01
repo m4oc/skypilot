@@ -11,6 +11,7 @@ import configparser
 import csv
 import json
 import os
+import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -126,16 +127,25 @@ def parse_plan_info(plan: Any) -> Dict[str, Any]:
         'price': price,
     }
 
+def clean_gpu_name(gpu_name: str) -> str:
+    """Clean GPU name by replacing spaces with hyphens for SkyPilot compatibility."""
+    if not gpu_name or pd.isna(gpu_name):
+        return ''
+    return str(gpu_name).replace(' ', '-')
+
 def get_gpu_info(gpu_count: int, gpu_name: str) -> str:
     """Generate GPU info JSON string compatible with SkyPilot."""
     if not gpu_name or gpu_count == 0:
         return ''
     
+    # Clean GPU name by replacing spaces with hyphens
+    clean_name = clean_gpu_name(gpu_name)
+    
     gpu_memory = GPU_TO_MEMORY.get(gpu_name, 16384)  # Default to 16GB if unknown
     
     gpu_info = {
         'Gpus': [{
-            'Name': gpu_name,
+            'Name': clean_name,  # Use cleaned name
             'Manufacturer': 'NVIDIA',  # Assuming NVIDIA for now
             'Count': float(gpu_count),
             'MemoryInfo': {
@@ -147,7 +157,7 @@ def get_gpu_info(gpu_count: int, gpu_name: str) -> str:
     
     return json.dumps(gpu_info).replace('"', "'")
 
-def fetch_seeweb_data(api_key: str) -> tuple[List[Dict], List[str]]:
+def fetch_seeweb_data(api_key: str) -> List[Dict]:
     """Fetch plans and regions from Seeweb API, with fallback to default data."""
     plans = FALLBACK_PLANS.copy()
     regions = FALLBACK_REGIONS.copy()
@@ -156,57 +166,46 @@ def fetch_seeweb_data(api_key: str) -> tuple[List[Dict], List[str]]:
         import ecsapi
         client = ecsapi.Api(token=api_key)
         
-        # Try to fetch regions first (simpler API)
-        try:
-            print("Fetching regions from Seeweb API...")
-            api_regions = client.fetch_regions()
-            if api_regions:
-                regions = []
-                for region in api_regions:
-                    if hasattr(region, 'location'):
-                        regions.append(region.location)
-                    elif hasattr(region, 'name'):
-                        regions.append(region.name)
-                    elif isinstance(region, dict):
-                        regions.append(region.get('name', region.get('id', 'unknown')))
-                    else:
-                        regions.append(str(region))
-                print(f"Successfully fetched {len(regions)} regions: {regions}")
-        except Exception as e:
-            print(f"Error fetching regions from API: {e}")
-            print(f"Using fallback regions: {regions}")
-        
         # Try to fetch plans - this is more complex and may fail
         try:
             print("Fetching plans from Seeweb API...")
             # Try simple plans first
             api_plans = client.fetch_plans()
+            print(f"API plans: {[p.name for p in api_plans if int(p.gpu) > 0]}")
             if api_plans and len(api_plans) > 0:
                 print(f"Successfully fetched {len(api_plans)} plans from API")
                 plans = []
                 for plan in api_plans:
+                    print(f"Fetching regions available for {plan.name}")
+                    regions_available = client.fetch_regions_available(plan.name)
+                    print(f"Regions available: {len(regions_available)}")
                     try:
                         parsed = parse_plan_info(plan)
+                        parsed.update({'regions_available': regions_available})
+                        print(f"Parsed plan: {parsed}")
                         plans.append(parsed)
                     except Exception as e:
                         print(f"Error parsing plan {plan}: {e}")
+                        raise e
                         continue
                 print(f"Successfully parsed {len(plans)} plans")
         except Exception as e:
+            raise e
             print(f"Error fetching plans from API: {e}")
             print(f"Using fallback plans: {[p['plan_name'] for p in plans]}")
         
     except ImportError:
         print("ecsapi not available, using fallback data")
     except Exception as e:
+        raise e
         print(f"Error initializing Seeweb client: {e}")
         print("Using fallback data")
     
-    return plans, regions
+    return plans
 
 def create_catalog(api_key: str, output_path: str) -> None:
     """Create Seeweb catalog by fetching data from API."""
-    plans, regions = fetch_seeweb_data(api_key)
+    plans = fetch_seeweb_data(api_key)
     
     # Create CSV catalog
     print(f"Writing catalog to {output_path}")
@@ -224,10 +223,13 @@ def create_catalog(api_key: str, output_path: str) -> None:
                     gpu_info_str = get_gpu_info(plan['gpu_count'], plan['gpu_name'])
                 
                 # Create entry for each region
-                for region in regions:
+                for region in plan.get('regions_available', []):
+                    print(f"Writing plan {plan['plan_name']} to {region}")
+                    # Clean GPU name for AcceleratorName field
+                    clean_gpu_name_value = clean_gpu_name(plan['gpu_name']) if plan['gpu_name'] else ''
                     writer.writerow([
                         plan['plan_name'],                                    # InstanceType
-                        plan['gpu_name'] if plan['gpu_name'] else '',        # AcceleratorName
+                        clean_gpu_name_value,                                # AcceleratorName (cleaned)
                         plan['gpu_count'] if plan['gpu_count'] > 0 else '',  # AcceleratorCount
                         plan['vcpus'],                                       # vCPUs
                         plan['memory_gb'],                                   # MemoryGiB  
@@ -241,7 +243,7 @@ def create_catalog(api_key: str, output_path: str) -> None:
                 continue
     
     print(f"Seeweb catalog saved to {output_path}")
-    print(f"Created {len(plans)} instance types across {len(regions)} regions")
+    print(f"Created {len(plans)} instance types")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate Seeweb catalog')

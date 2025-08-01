@@ -1,0 +1,23 @@
+# SkyPilot configuration file
+# This file contains global configuration settings for SkyPilot
+
+# Cloud configurations
+seeweb:
+  # Default configuration for Seeweb cloud
+  default:
+    # You can add default settings here if needed
+    pass
+
+# Global settings
+active_workspace: default
+
+# Optional: Add other cloud configurations as needed
+# aws:
+#   default:
+#     # AWS configuration
+#     pass
+
+# gcp:
+#   default:
+#     # GCP configuration
+#     pass 

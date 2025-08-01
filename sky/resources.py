@@ -526,7 +526,9 @@ class Resources:
     @property
     def infra(self) -> infra_utils.InfraInfo:
         cloud = str(self.cloud) if self.cloud is not None else None
+        print(f"[DEBUG_RESOURCES] infra called with: cloud={cloud}, memory={self.memory}, cpus={self.cpus}, region={self.region}, zone={self.zone}")
         return infra_utils.InfraInfo(cloud, self.region, self.zone)
+        print(f"[DEBUG_RESOURCES2] infra returned: {infra_utils}")
 
     @property
     def cloud(self) -> Optional[clouds.Cloud]:
@@ -562,6 +564,7 @@ class Resources:
             vcpus, _ = self.cloud.get_vcpus_mem_from_instance_type(
                 self._instance_type)
             return str(vcpus)
+            print(f"[DEBUG_RESOURCES_CPUS] cpus returned: {vcpus}")
         return None
 
     @property

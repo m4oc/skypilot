@@ -81,6 +81,9 @@ class SeewebNodeProvider:
         for srv in self._query_cluster_nodes():
             if srv.status in ("Booted", "Running"):
                 self._power_off(srv.name)
+        
+        # Aspetta che tutti i server siano effettivamente spenti
+        self.wait_instances("Off")
 
     # --------------------------------------------------------------------- #
     # 5. query_instances
@@ -139,8 +142,8 @@ class SeewebNodeProvider:
             if all_stable:
                 logger.info("Tutti i server sono stabili")
                 # Sleep di sicurezza per permettere eventuali reboot tardivi
-                logger.info("Attendo 60 secondi per permettere eventuali reboot tardivi...")
-                time.sleep(60)
+                logger.info("Attendo 15 secondi per permettere eventuali reboot tardivi...")
+                time.sleep(15)
                 return True
             
             logger.info("Attendo che tutti i server siano stabili...")
@@ -425,7 +428,7 @@ def query_instances(
     for name, seeweb_status in seeweb_instances.items():
         if non_terminated_only and seeweb_status in ('Terminated', 'Deleted'):
             continue
-        result[name] = status_map.get(seeweb_status, status_lib.ClusterStatus.UNKNOWN)
+        result[name] = status_map.get(seeweb_status, status_lib.ClusterStatus.INIT)
     
     return result
 

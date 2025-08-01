@@ -917,6 +917,7 @@ class Optimizer:
                 logger.info('')
             logger.info(f'Considered resources {task_str}'
                         f'({task.num_nodes} node{plural}):')
+            print(f"[DEBUG_OPTIMIZER] Processing {task_str}")
 
             # Only print 1 row per cloud.
             # The following code is to generate the table
