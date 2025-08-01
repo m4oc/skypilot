@@ -1394,7 +1394,6 @@ class RetryingVmProvisioner(object):
         for zones in self._yield_zones(to_provision, num_nodes, cluster_name,
                                        prev_cluster_status,
                                        prev_cluster_ever_up):
-            print(f"Zones: {zones}")
             # Filter out zones that are blocked, if any.
             # This optimize the provision loop by skipping zones that are
             # indicated to be unavailable from previous provision attempts.
@@ -1439,7 +1438,7 @@ class RetryingVmProvisioner(object):
                     keep_launch_fields_in_existing_config=cluster_exists,
                     volume_mounts=volume_mounts,
                 )
-                print(f"DEBUG:Config dict: {config_dict}")
+
             except exceptions.ResourcesUnavailableError as e:
                 # Failed due to catalog issue, e.g. image not found, or
                 # GPUs are requested in a Kubernetes cluster but the cluster
@@ -1474,7 +1473,6 @@ class RetryingVmProvisioner(object):
                 logger.debug('Skipping provisioning of cluster with matching '
                              'config hash.')
                 config_dict['provisioning_skipped'] = True
-                print(f"DEBUG:Config hash match exit: {config_dict}")
                 return config_dict
             config_dict['provisioning_skipped'] = False
 
@@ -1524,21 +1522,21 @@ class RetryingVmProvisioner(object):
                 requested_resources=requested_resources,
                 ready=False,
             )
-            print(f"DEBUG:Global user state: {global_user_state}")
+
 
             global_user_state.set_owner_identity_for_cluster(
                 cluster_name, cloud_user_identity)
 
             if (to_provision.cloud.PROVISIONER_VERSION ==
                     clouds.ProvisionerVersion.SKYPILOT):
-                print(f"DEBUG2:Provisioner version: {to_provision.cloud.PROVISIONER_VERSION}")
+
                 # TODO (suquark): Gradually move the other clouds to
                 #  the new provisioner once they are ready.
                 assert to_provision.region == region.name, (to_provision,
                                                             region)
-                print(f"DEBUG3:Region: {region}")
+
                 num_nodes = handle.launched_nodes
-                print(f"DEBUG4:Num nodes: {num_nodes}")
+
                 # Some clouds, like RunPod, only support exposing ports during
                 # launch. For those clouds, we pass the ports to open in the
                 # `bulk_provision` to expose the ports during provisioning.
@@ -1549,7 +1547,7 @@ class RetryingVmProvisioner(object):
                     list(resources_utils.port_ranges_to_set(to_provision.ports))
                     if to_provision.cloud.OPEN_PORTS_VERSION <=
                     clouds.OpenPortsVersion.LAUNCH_ONLY else None)
-                print(f"DEBUG5:Ports to open on launch: {ports_to_open_on_launch}")
+
                 try:
                     controller = controller_utils.Controllers.from_name(
                         cluster_name)
@@ -1571,7 +1569,7 @@ class RetryingVmProvisioner(object):
                                 f'{region.name}{colorama.Style.RESET_ALL}'
                                 f'{zone_str}.'))
                     assert handle.cluster_yaml is not None
-                    print(f"DEBUG6:pre provision: {handle}")
+
                     provision_record = provisioner.bulk_provision(
                         to_provision.cloud,
                         region,
@@ -1583,7 +1581,7 @@ class RetryingVmProvisioner(object):
                         prev_cluster_ever_up=prev_cluster_ever_up,
                         log_dir=self.log_dir,
                         ports_to_open_on_launch=ports_to_open_on_launch)
-                    print(f"DEBUG7:post provision: {provision_record}")
+
                     # NOTE: We will handle the logic of '_ensure_cluster_ray_started' #pylint: disable=line-too-long
                     # in 'provision_utils.post_provision_runtime_setup()' in the
                     # caller.

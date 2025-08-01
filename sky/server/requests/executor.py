@@ -279,7 +279,7 @@ def override_request_env_and_config(
     # TODO(zhwu): we need to make the entire request a context available to the
     # entire request execution, so that we can access info like user through
     # the execution.
-    print(f"DEBUG103: override_skypilot_config: {request_body.override_skypilot_config}")
+    
     user = models.User(id=request_body.env_vars[constants.USER_ID_ENV_VAR],
                        name=request_body.env_vars[constants.USER_ENV_VAR])
     global_user_state.add_or_update_user(user)
@@ -294,11 +294,11 @@ def override_request_env_and_config(
         client_command=request_body.entrypoint_command,
         using_remote_api_server=request_body.using_remote_api_server,
         user=user)
-    print(f"DEBUG102: override_skypilot_config: {request_body.override_skypilot_config}")
+    
     try:
         logger.debug(
             f'override path: {request_body.override_skypilot_config_path}')
-        print(f"DEBUG100: override_skypilot_config: {request_body.override_skypilot_config}")
+
         with skypilot_config.override_skypilot_config(
                 request_body.override_skypilot_config,
                 request_body.override_skypilot_config_path):
@@ -386,7 +386,7 @@ def _request_execution_wrapper(request_id: str,
                     logger.debug(f'request config: \n'
                                  f'{common_utils.dump_yaml_str(dict(config))}')
                 return_value = func(**request_body.to_kwargs())
-                print(f"DEBUG101: return_value: {return_value}")
+        
                 f.flush()
         except KeyboardInterrupt:
             logger.info(f'Request {request_id} cancelled by user')

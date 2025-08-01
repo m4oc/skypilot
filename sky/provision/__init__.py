@@ -47,9 +47,7 @@ def _route_to_cloud_impl(func):
         inspect.signature(func).bind(*args, **kwargs)
         if args:
             provider_name = args[0]
-            print(f"DEBUG32 {args[0]}")
             args = args[1:]
-            print(f"DEBUG33 {args}")
         else:
             provider_name = kwargs.pop('provider_name')
 
@@ -61,13 +59,10 @@ def _route_to_cloud_impl(func):
 
         impl: Callable = getattr(module, func.__name__, None)
         if impl is not None:
-            print(f"DEBUG16:Impl: {impl} {func.__name__} {module_name} file: {inspect.getfile(impl)}")
-            print(f"DEBUG17:Impl found")
             res = impl(*args, **kwargs)
-            print(f"DEBUG23: {res}")
             return res
         else:
-            print(f"DEBUG18:No impl")
+            pass
         # If implementation does not exist, fall back to default implementation
         return func(provider_name, *args, **kwargs)
 

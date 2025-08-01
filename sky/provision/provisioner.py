@@ -63,16 +63,13 @@ def _bulk_provision(
     #  only ~3s, caching it seems over-engineering and could
     #  cause other issues like the cache is not synced
     #  with the cloud configuration.
-    print(f"DEBUG10:Bootstrap")
     config = provision.bootstrap_instances(provider_name, region_name,
                                            cluster_name.name_on_cloud,
                                            bootstrap_config)
-    print(f"DEBUG11:Config: {config}")
     provision_record = provision.run_instances(provider_name,
                                                region_name,
                                                cluster_name.name_on_cloud,
                                                config=config)
-    print(f"DEBUG12:Provision record: {provision_record}")
     backoff = common_utils.Backoff(initial_backoff=1, max_backoff_factor=3)
     logger.debug(f'\nWaiting for instances of {cluster_name!r} to be ready...')
     rich_utils.force_update_status(
@@ -162,7 +159,6 @@ def bulk_provision(
             # And there is no possibility to fix it by teardown.
             raise
         except Exception as exc:  # pylint: disable=broad-except
-            print(f"DEBUG20:Exception: {exc}")
             zone_str = 'all zones'
             if zones:
                 zone_str = ','.join(zone.name for zone in zones)
@@ -177,7 +173,6 @@ def bulk_provision(
             retry_cnt = 1
             while True:
                 try:
-                    print(f"DEBUG19:Tear down cluster")
                     teardown_cluster(
                         repr(cloud),
                         cluster_name,
@@ -724,14 +719,9 @@ def post_provision_runtime_setup(
                 ux_utils.error_message(
                     'Failed to set up SkyPilot runtime on cluster.',
                     provision_logging.config.log_path),
-                print(f"DEBUG25: {traceback.format_exc()}"),
-                print(f"DEBUG26: {provision_logging.config.log_path}"),
                 )
                 
-                    
-
             if sky_logging.logging_enabled(logger, sky_logging.DEBUG):
-                print("DEBUG24:Stacktrace:")
                 logger.debug(f'Stacktrace:\n{traceback.format_exc()}')
             with ux_utils.print_exception_no_traceback():
                 raise

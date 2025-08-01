@@ -1,7 +1,7 @@
 """
-Seeweb provisioner per SkyPilot / Ray autoscaler.
+Seeweb provisioner for SkyPilot / Ray autoscaler.
 
-Prerequisito:
+Prerequisites:
     pip install ecsapi
 """
 
@@ -16,52 +16,49 @@ from sky.utils import status_lib
 logger = sky_logging.init_logger(__name__)
 
 # --------------------------------------------------------------------------- #
-# Costanti utili
+# Useful constants
 # --------------------------------------------------------------------------- #
 _POLL_INTERVAL = 5         # sec
 _MAX_BOOT_TIME = 600       # sec
-_NOTE_KEY = "skypilot_cluster"   # salviamo cluster_name in .notes per filtrare
+_NOTE_KEY = "skypilot_cluster"   # we save cluster_name in .notes for filtering
 
 # --------------------------------------------------------------------------- #
-#  Classe richiesta dal backend Ray
+#  Class required by the Ray backend
 # --------------------------------------------------------------------------- #
 class SeewebNodeProvider:
-    """Provisioner minimalista per Seeweb ECS."""
+    """Minimalist provisioner for Seeweb ECS."""
 
     def __init__(self, provider_config: ProvisionConfig, cluster_name: str):
         """
-        provider_config: dict popolato dal template (plan, image, location,
-                         remote_key_name, eventuale gpu…)
-        cluster_name   : nome SkyPilot sul cloud (usato in notes)
+        provider_config: dict populated by template (plan, image, location,
+                         remote_key_name, optional gpu…)
+        cluster_name   : SkyPilot name on cloud (used in notes)
         """
         self.config = provider_config
         self.cluster_name = cluster_name
         self.ecs: Api = seeweb_adaptor.client()
-        print(f"ECS API: {type(self.ecs)}")
 
     # --------------------------------------------------------------------- #
-    # 1. bootstrap_instances – qui non serve pre-elaborare nulla
+    # 1. bootstrap_instances – no preprocessing needed here
     # --------------------------------------------------------------------- #
-    #def bootstrap_instances(self, config: Dict) -> Dict:   # noqa: D401
-    #    print(f"DEBUG13:Bootstrap instances: {config}")
-    #    return config
+
 
     # --------------------------------------------------------------------- #
-    # 2. run_instances: riaccende o crea finché non arriviamo a count
+    # 2. run_instances: restart or create until we reach count
     # --------------------------------------------------------------------- #
     def run_instances(self, config: Dict, count: int) -> None:
         existing = self._query_cluster_nodes()
         running = [s for s in existing
                    if s.status in ("Booted", "Running", "Booting", "PoweringOn")]
 
-        # a) riaccendi Off
+        # a) restart Off servers
         for srv in (s for s in existing if s.status == "Off"):
             if len(running) >= count:
                 break
             self._power_on(srv.name)
             running.append(srv)
 
-        # b) crea nuove VM se mancano
+        # b) create new VMs if missing
         while len(running) < count:
             self._create_server()
             running.append({})   # placeholder
@@ -82,14 +79,13 @@ class SeewebNodeProvider:
             if srv.status in ("Booted", "Running"):
                 self._power_off(srv.name)
         
-        # Aspetta che tutti i server siano effettivamente spenti
+        # Wait for all servers to be actually stopped
         self.wait_instances("Off")
 
     # --------------------------------------------------------------------- #
     # 5. query_instances
     # --------------------------------------------------------------------- #
     def query_instances(self) -> Dict[str, str]:
-        print(f"DEBUG25:Query instances: {self._query_cluster_nodes()}")
         return {srv.name: srv.status for srv in self._query_cluster_nodes()}
 
     # --------------------------------------------------------------------- #
@@ -100,23 +96,23 @@ class SeewebNodeProvider:
         while time.time() < deadline:
             states = {srv.status for srv in self._query_cluster_nodes()}
             if states <= {desired_state}:
-                # Se tutti i server sono Booted, attendi che siano veramente stabili
+                # If all servers are Booted, wait for them to be truly stable
                 if desired_state == "Booted":
-                    logger.info("Server in stato Booted, verifico stabilità...")
+                    logger.info("Servers in Booted state, checking stability...")
                     if self._wait_for_all_servers_stable():
-                        logger.info("Tutti i server sono stabili")
+                        logger.info("All servers are stable")
                         return
                     else:
-                        logger.warning("Server non ancora stabili, continuo ad attendere...")
+                        logger.warning("Servers not yet stable, continuing to wait...")
                         time.sleep(_POLL_INTERVAL)
                         continue
                 return
             time.sleep(_POLL_INTERVAL)
-        raise TimeoutError(f"Nodi non sono tutti in stato {desired_state} entro il timeout")
+        raise TimeoutError(f"Nodes are not all in state {desired_state} within timeout")
 
     def _wait_for_all_servers_stable(self, max_wait: int = 300) -> bool:
-        """Attende che tutti i server del cluster siano stabili."""
-        logger.info("Verifico stabilità di tutti i server del cluster...")
+        """Waits for all cluster servers to be stable."""
+        logger.info("Checking stability of all cluster servers...")
         
         start_time = time.time()
         while time.time() - start_time < max_wait:
@@ -125,46 +121,46 @@ class SeewebNodeProvider:
             
             for node in cluster_nodes:
                 if node.status == "Booted":
-                    # Verifica che il server sia raggiungibile via ping
+                    # Check that server is reachable via ping
                     if not self._ping_server(node.ipv4):
-                        logger.warning(f"Server {node.name} ({node.ipv4}) non raggiungibile via ping")
+                        logger.warning(f"Server {node.name} ({node.ipv4}) not reachable via ping")
                         all_stable = False
                         break
                     
-                    # Verifica che SSH sia disponibile
+                    # Check that SSH is available
                     if not self._check_ssh_ready(node.ipv4):
-                        logger.warning(f"SSH non disponibile su {node.name} ({node.ipv4})")
+                        logger.warning(f"SSH not available on {node.name} ({node.ipv4})")
                         all_stable = False
                         break
                     
-                    logger.info(f"Server {node.name} ({node.ipv4}) è stabile")
+                    logger.info(f"Server {node.name} ({node.ipv4}) is stable")
             
             if all_stable:
-                logger.info("Tutti i server sono stabili")
-                # Sleep di sicurezza per permettere eventuali reboot tardivi
-                logger.info("Attendo 15 secondi per permettere eventuali reboot tardivi...")
+                logger.info("All servers are stable")
+                # Safety sleep to allow for late reboots
+                logger.info("Waiting 15 seconds to allow for late reboots...")
                 time.sleep(15)
                 return True
             
-            logger.info("Attendo che tutti i server siano stabili...")
+            logger.info("Waiting for all servers to be stable...")
             time.sleep(_POLL_INTERVAL)
         
-        logger.error("Timeout nell'attesa della stabilità dei server")
+        logger.error("Timeout waiting for server stability")
         return False
 
     def _ping_server(self, server_ip: str) -> bool:
-        """Verifica che il server sia raggiungibile via ping."""
+        """Check that server is reachable via ping."""
         try:
             import subprocess
             result = subprocess.run(['ping', '-c', '1', '-W', '5', server_ip], 
                                   capture_output=True, timeout=10)
             return result.returncode == 0
         except Exception as e:
-            logger.debug(f"Errore nel ping di {server_ip}: {e}")
+            logger.debug(f"Error pinging {server_ip}: {e}")
             return False
 
     def _check_ssh_ready(self, server_ip: str) -> bool:
-        """Verifica che SSH sia disponibile sul server."""
+        """Check that SSH is available on the server."""
         try:
             import subprocess
             result = subprocess.run([
@@ -174,11 +170,11 @@ class SeewebNodeProvider:
             ], capture_output=True, timeout=15)
             return result.returncode == 0
         except Exception as e:
-            logger.debug(f"Errore nel controllo SSH di {server_ip}: {e}")
+            logger.debug(f"Error checking SSH on {server_ip}: {e}")
             return False
 
     # ------------------------------------------------------------------ #
-    # 7. open_ports / cleanup_ports – Seeweb non ha security groups
+    # 7. open_ports / cleanup_ports – Seeweb doesn't have security groups
     # ------------------------------------------------------------------ #
     def open_ports(self, ports: List[int]):   # pylint: disable=unused-argument
         pass
@@ -186,36 +182,31 @@ class SeewebNodeProvider:
     def cleanup_ports(self):
         pass
 
-    # ======================  helper privati  ========================= #
+    # ======================  private helpers  ========================= #
     def _query_cluster_nodes(self):
-        """Lista server con notes == cluster_name."""
+        """List servers with notes == cluster_name."""
         return [s for s in self.ecs.fetch_servers()
                 if s.notes == self.cluster_name]
 
     def _create_server(self):
-        """POST /servers con payload completo."""
-        print(f"DEBUG50: authentication_config = {self.config.authentication_config}")
-        print(f"DEBUG51: node_config = {self.config.node_config}")
+        """POST /servers with complete payload."""
         payload = {
-            "plan":     self.config.node_config.get("plan"),       # es. eCS4
-            "image":    self.config.node_config.get("image"),      # es. ubuntu-2204
-            "location": self.config.node_config.get("location"),   # es. it-mi2
+            "plan":     self.config.node_config.get("plan"),       # e.g. eCS4
+            "image":    self.config.node_config.get("image"),      # e.g. ubuntu-2204
+            "location": self.config.node_config.get("location"),   # e.g. it-mi2
             "notes":    self.cluster_name,
-            "ssh_key": self.config.authentication_config.get("remote_key_name"),  # chiave remota
+            "ssh_key": self.config.authentication_config.get("remote_key_name"),  # remote key
         }
 
-        # GPU opzionale
+        # Optional GPU
         if "gpu" in self.config.node_config:
             payload.update({
                 "gpu":       self.config.node_config.get("gpu"),
                 "gpu_label": self.config.node_config.get("gpu_label", ""),
             })
-        print(f"DEBUG21:Create server: {payload}")
         create_request = ServerCreateRequest(**payload)
         logger.info("Creating Seeweb server %s", payload)
-        # DEBUG: ALEX PATCH Falso Vero Dopo patch
-        _, action_id = self.ecs.create_server(create_request, check_if_can_create=False)   # dict con action_id
-        print(f"DEBUG22:Action ID: {action_id}")
+        _, action_id = self.ecs.create_server(create_request, check_if_can_create=False)   # dict with action_id
         self.ecs.watch_action(action_id, max_retry=180, fetch_every=5)
 
     def _power_on(self, server_id: str):
@@ -227,7 +218,7 @@ class SeewebNodeProvider:
         logger.info("Power-off issued to %s", server_id)
 
     def _wait_action(self, action_id: int):
-        """Poll action finché non termina."""
+        """Poll action until it completes."""
         while True:
             action = self.ecs.fetch_action(action_id)
             if action["status"] in ("completed", "ok", "no_content"):
@@ -248,7 +239,7 @@ def run_instances(region: str, cluster_name_on_cloud: str,
     provider = SeewebNodeProvider(config, cluster_name_on_cloud)
     provider.run_instances(config, config.count)
     
-    # Trova il nodo head (per ora prendiamo il primo server del cluster)
+    # Find the head node (for now we take the first server of the cluster)
     cluster_nodes = provider._query_cluster_nodes()
     if not cluster_nodes:
         raise RuntimeError(f"No nodes found for cluster {cluster_name_on_cloud}")
@@ -258,10 +249,10 @@ def run_instances(region: str, cluster_name_on_cloud: str,
     return ProvisionRecord(
         provider_name="Seeweb",
         region=region,
-        zone=None,  # Seeweb non usa zone
+        zone=None,  # Seeweb doesn't use zones
         cluster_name=cluster_name_on_cloud,
         head_instance_id=head_node.name,
-        resumed_instance_ids=[],  # Per ora vuoto
+        resumed_instance_ids=[],  # Empty for now
         created_instance_ids=[node.name for node in cluster_nodes],
     )
 
@@ -295,100 +286,82 @@ def wait_instances(
     state: Optional[status_lib.ClusterStatus],
 ) -> None:
     """Wait for instances to reach desired state."""
-    print(f"DEBUG60: wait_instances called with state={state}")
-    
-    # Mappa ClusterStatus a stringa Seeweb
+    # Map ClusterStatus to Seeweb string
     if state == status_lib.ClusterStatus.UP:
         seeweb_state = "Booted"
     elif state == status_lib.ClusterStatus.STOPPED:
         seeweb_state = "Off"
     elif state is None:
-        seeweb_state = "Terminated"  # Per terminazione
+        seeweb_state = "Terminated"  # For termination
     else:
         seeweb_state = "Booted"  # Default fallback
     
-    # Crea direttamente il client Seeweb e aspetta
+    # Create Seeweb client directly and wait
     client = seeweb_adaptor.client()
     deadline = time.time() + _MAX_BOOT_TIME
     while time.time() < deadline:
         cluster_nodes = [s for s in client.fetch_servers() if s.notes == cluster_name_on_cloud]
         if not cluster_nodes:
-            print(f"DEBUG62: No nodes found for cluster {cluster_name_on_cloud}")
             time.sleep(_POLL_INTERVAL)
             continue
             
         states = {srv.status for srv in cluster_nodes}
-        print(f"DEBUG63: Current states: {states}, waiting for: {seeweb_state}")
         if states <= {seeweb_state}:
-            # Se tutti i server sono Booted, attendi che siano veramente stabili
+            # If all servers are Booted, wait for them to be truly stable
             if seeweb_state == "Booted":
-                print(f"DEBUG64: All nodes reached state {seeweb_state}, checking stability...")
                 if _wait_for_all_servers_stable_standalone(cluster_nodes):
-                    print(f"DEBUG65: All nodes are stable")
                     return
                 else:
-                    print(f"DEBUG66: Nodes not yet stable, continuing to wait...")
                     time.sleep(_POLL_INTERVAL)
                     continue
-            print(f"DEBUG64: All nodes reached state {seeweb_state}")
             return
         time.sleep(_POLL_INTERVAL)
     
-    raise TimeoutError(f"Nodi non sono tutti in stato {seeweb_state} entro il timeout")
+    raise TimeoutError(f"Nodes are not all in state {seeweb_state} within timeout")
 
 
 def _wait_for_all_servers_stable_standalone(cluster_nodes, max_wait: int = 300) -> bool:
-    """Attende che tutti i server del cluster siano stabili (versione standalone)."""
-    print("Verifico stabilità di tutti i server del cluster...")
-    
+    """Waits for all cluster servers to be stable (standalone version)."""
     start_time = time.time()
     while time.time() - start_time < max_wait:
         all_stable = True
         
         for node in cluster_nodes:
             if node.status == "Booted":
-                # Verifica che il server sia raggiungibile via ping
+                # Check that server is reachable via ping
                 if not _ping_server_standalone(node.ipv4):
-                    print(f"Server {node.name} ({node.ipv4}) non raggiungibile via ping")
                     all_stable = False
                     break
                 
-                # Verifica che SSH sia disponibile
+                # Check that SSH is available
                 if not _check_ssh_ready_standalone(node.ipv4):
-                    print(f"SSH non disponibile su {node.name} ({node.ipv4})")
                     all_stable = False
                     break
-                
-                print(f"Server {node.name} ({node.ipv4}) è stabile")
         
         if all_stable:
-            print("Tutti i server sono stabili")
-            # Sleep di sicurezza per permettere eventuali reboot tardivi
-            print("Attendo 60 secondi per permettere eventuali reboot tardivi...")
+            # Safety sleep to allow for late reboots
             time.sleep(60)
             return True
         
-        print("Attendo che tutti i server siano stabili...")
         time.sleep(_POLL_INTERVAL)
     
-    print("Timeout nell'attesa della stabilità dei server")
     return False
 
 
 def _ping_server_standalone(server_ip: str) -> bool:
-    """Verifica che il server sia raggiungibile via ping (versione standalone)."""
+    """Check that server is reachable via ping (standalone version)."""
     try:
         import subprocess
         result = subprocess.run(['ping', '-c', '1', '-W', '5', server_ip], 
                               capture_output=True, timeout=10)
         return result.returncode == 0
     except Exception as e:
-        print(f"Errore nel ping di {server_ip}: {e}")
+        print(f"Error pinging {server_ip}: {e}")
         return False
 
 
 def _check_ssh_ready_standalone(server_ip: str) -> bool:
-    """Verifica che SSH sia disponibile sul server (versione standalone)."""
+    """Check that SSH is available on the server (standalone version)."""
     try:
         import subprocess
         result = subprocess.run([
@@ -397,8 +370,7 @@ def _check_ssh_ready_standalone(server_ip: str) -> bool:
             'ecuser@' + server_ip, 'echo "SSH ready"'
         ], capture_output=True, timeout=15)
         return result.returncode == 0
-    except Exception as e:
-        print(f"Errore nel controllo SSH di {server_ip}: {e}")
+    except Exception:
         return False
 
 
@@ -439,7 +411,7 @@ def get_cluster_info(
     provider_config: Optional[Dict[str, Any]] = None,
 ) -> 'ClusterInfo':
     """Get cluster information for Seeweb cluster."""
-    # Usa il client Seeweb per ottenere le istanze del cluster
+    # Use Seeweb client to get cluster instances
     client = seeweb_adaptor.client()
     cluster_nodes = [s for s in client.fetch_servers() if s.notes == cluster_name_on_cloud]
     
@@ -450,13 +422,13 @@ def get_cluster_info(
     head_instance = None
     
     for node in cluster_nodes:
-        # Per Seeweb, prendiamo il primo nodo come head
+        # For Seeweb, we take the first node as head
         if head_instance is None:
             head_instance = node.name
             
-        # Ottieni l'IP del server (Seeweb usa l'attributo 'ipv4')
+        # Get server IP (Seeweb uses 'ipv4' attribute)
         external_ip = node.ipv4
-        internal_ip = external_ip  # Per Seeweb, IP interno = IP esterno
+        internal_ip = external_ip  # For Seeweb, internal IP = external IP
         
         instances[node.name] = [
             InstanceInfo(

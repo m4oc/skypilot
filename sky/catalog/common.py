@@ -174,7 +174,7 @@ def read_catalog(filename: str,
     made after the last pull.
     """
     assert filename.endswith('.csv'), 'The catalog file must be a CSV file.'
-    print(f"DEBUG CATALOG: Reading catalog from {filename}")
+    
     assert (pull_frequency_hours is None or
             pull_frequency_hours >= 0), pull_frequency_hours
     catalog_path = get_catalog_path(filename)

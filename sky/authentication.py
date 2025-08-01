@@ -368,27 +368,27 @@ def setup_lambda_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
     return config
 
 def setup_seeweb_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Registra la chiave pubblica con Seeweb e annota il nome remoto."""
-    # 1. coppia locale
+    """Registers the public key with Seeweb and notes the remote name."""
+    # 1. local key pair
     get_or_generate_keys()
 
-    # 2. chiave pubblica
+    # 2. public key
     _, public_key_path = get_or_generate_keys()
     with open(public_key_path, 'r', encoding='utf-8') as f:
         public_key = f.read().strip()
 
-    # 3. client API Seeweb
+    # 3. Seeweb API client
     client = seeweb_adaptor.client()
 
-    # 4. Controlla chiave registrata
+    # 4. Check if key is already registered
     prefix = f'sky-key-{common_utils.get_user_hash()}'
     remote_name = None
     for k in client.fetch_ssh_keys():
         if k.key.strip() == public_key:
-            remote_name = k.label          # già presente
+            remote_name = k.label          # already present
             break
 
-    # 5. non esiste, scegli un nome unico e la crei
+    # 5. doesn't exist, choose a unique name and create it
     if remote_name is None:
         suffix = 1
         remote_name = prefix
@@ -398,9 +398,9 @@ def setup_seeweb_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
             remote_name = f'{prefix}-{suffix}'
         client.create_ssh_key(label=remote_name, key=public_key)
 
-    # 6. Mettiamo il nome remoto nel cluster-config (come per Lambda)
+    # 6. Put the remote name in cluster-config (like for Lambda)
     config['auth']['remote_key_name'] = remote_name
-    print("DEBUG30 : valore di auth :", config['auth']['remote_key_name'])
+    
     return config
 
 def setup_ibm_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
