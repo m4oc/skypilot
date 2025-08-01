@@ -163,7 +163,7 @@ class Seeweb(clouds.Cloud):
         # Determine image based on whether the instance type name contains "GPU"
         if resources.instance_type and 'GPU' in resources.instance_type.upper():
             # GPU instance - use image with NVIDIA drivers
-            image_id = 'ubuntu-2204-nvidia-gpu-driver'
+            image_id = 'ubuntu-2204-nvidia-driver'
         else:
             # CPU-only instance - use standard Ubuntu image
             image_id = 'ubuntu-2204'
