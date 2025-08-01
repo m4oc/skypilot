@@ -13,12 +13,13 @@ def check_compute_credentials():
         import configparser
         from pathlib import Path
         
-        # Read API key
+        # Read API key from standard Seeweb configuration file
         parser = configparser.ConfigParser()
         parser.read(Path('~/.seeweb_cloud/seeweb_keys').expanduser())
         api_key = parser['DEFAULT']['api_key'].strip()
         
-        # Test connection
+        # Test connection by fetching servers list
+        # This validates that the API key is working
         client = ecsapi.Api(token=api_key)
         client.fetch_servers()
         return True, None
@@ -48,6 +49,7 @@ def client():
     import configparser
     from pathlib import Path
     
+    # Create authenticated client using the same credential pattern
     parser = configparser.ConfigParser()
     parser.read(Path('~/.seeweb_cloud/seeweb_keys').expanduser())
     api_key = parser['DEFAULT']['api_key'].strip()

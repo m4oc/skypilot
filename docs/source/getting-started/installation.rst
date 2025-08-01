@@ -578,7 +578,7 @@ In the prompt, enter your Nebius Access Key ID and Secret Access Key (see `instr
 Seeweb
 ~~~~~~~~~~~~~~~~~~
 
-`Seeweb <https://www.seeweb.it/>`_ Seeweb is your European Cloud Provider specializing in high-performance Cloud solutions and GPU servers ideal for powering artificial intelligence efficiently and sustainably. With a 100% renewable energy-powered infrastructure and an excellent price-performance ratio, Seeweb enables AI innovation with a responsible environmental impact.
+`Seeweb <https://www.seeweb.it/>`_ Seeweb is your European Cloud Provider specialized in high-performance Cloud solutions and GPU servers ideal for powering artificial intelligence efficiently and sustainably. With a 100% renewable energy-powered infrastructure and an excellent price-performance ratio, Seeweb enables AI innovation with a responsible environmental impact.
 
 
 Setup

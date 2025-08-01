@@ -35,6 +35,7 @@ GPU_TO_MEMORY = {
 }
 
 # Fallback catalog data if API fails
+# These are example plans - actual Seeweb offerings may differ
 FALLBACK_PLANS = [
     # CPU-only instances
     {'plan_name': 'eCS1', 'vcpus': 1, 'memory_gb': 2, 'price': 0.05, 'gpu_name': None, 'gpu_count': 0},
@@ -176,6 +177,11 @@ def fetch_seeweb_data(api_key: str) -> List[Dict]:
                 print(f"Successfully fetched {len(api_plans)} plans from API")
                 plans = []
                 for plan in api_plans:
+                    # Skip plans that end with 'W' (Windows plans)
+                    if plan.name.endswith('W'):
+                        print(f"Skipping Windows plan: {plan.name}")
+                        continue
+                        
                     print(f"Fetching regions available for {plan.name}")
                     regions_available = client.fetch_regions_available(plan.name)
                     print(f"Regions available: {len(regions_available)}")
@@ -188,7 +194,7 @@ def fetch_seeweb_data(api_key: str) -> List[Dict]:
                         print(f"Error parsing plan {plan}: {e}")
                         raise e
                         continue
-                print(f"Successfully parsed {len(plans)} plans")
+                print(f"Successfully parsed {len(plans)} plans (excluding Windows plans)")
         except Exception as e:
             raise e
             print(f"Error fetching plans from API: {e}")
@@ -251,9 +257,6 @@ def main():
                         help='Seeweb API key')
     parser.add_argument('--api-key-path',
                         help='Path to file containing Seeweb API key')
-    parser.add_argument('--output', '-o',
-                        default='seeweb/vms.csv',
-                        help='Output path for catalog CSV file')
     parser.add_argument('--fallback-only', 
                         action='store_true',
                         help='Skip API calls and use only fallback data')
@@ -272,11 +275,10 @@ def main():
             print(f"Error getting API key: {e}")
             print("Using fallback data only")
     
-    # Create output directory
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
-    
-    # Create catalog
-    create_catalog(api_key, args.output)
+    # Create catalog using standard pattern
+    os.makedirs('seeweb', exist_ok=True)
+    create_catalog(api_key, 'seeweb/vms.csv')
+    print('Seeweb Service Catalog saved to seeweb/vms.csv')
 
 if __name__ == '__main__':
     main() 

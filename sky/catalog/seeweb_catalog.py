@@ -16,8 +16,10 @@ from sky.utils import ux_utils
 if typing.TYPE_CHECKING:
     from sky.clouds import cloud
 
-# Use custom catalog path for Seeweb
-custom_catalog_path = os.path.expanduser('~/.SeewebSky/seeweb/vms.csv')
+# Use standard SkyPilot catalog path for Seeweb
+def get_seeweb_catalog_path() -> str:
+    """Get the standard catalog path for Seeweb."""
+    return common.get_catalog_path('seeweb/vms.csv')
 
 def clean_gpu_name(gpu_name: str) -> str:
     """Clean GPU name by replacing spaces with hyphens for SkyPilot compatibility."""
@@ -32,12 +34,20 @@ def clean_accelerator_names_in_df(df: pd.DataFrame) -> pd.DataFrame:
         df['AcceleratorName'] = df['AcceleratorName'].apply(clean_gpu_name)
     return df
 
+# Load catalog using standard SkyPilot system
 try:
-    _df = pd.read_csv(custom_catalog_path)
-    # Clean accelerator names
-    _df = clean_accelerator_names_in_df(_df)
+    catalog_path = get_seeweb_catalog_path()
+    if os.path.exists(catalog_path):
+        _df = pd.read_csv(catalog_path)
+        # Clean accelerator names
+        _df = clean_accelerator_names_in_df(_df)
+    else:
+        # Create empty DataFrame if catalog doesn't exist
+        # This allows SkyPilot to work even without a catalog file
+        _df = pd.DataFrame()
 except Exception as e:
     # Create empty DataFrame as fallback
+    # This ensures SkyPilot doesn't crash if catalog loading fails
     _df = pd.DataFrame()
 
 
