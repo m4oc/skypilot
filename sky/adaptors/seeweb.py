@@ -3,10 +3,8 @@
 def check_compute_credentials():
     """Checks if the user has access credentials to Seeweb's compute service."""
     try:
-        # Ensure proper import - avoid LazyImport issues
         import sys
         if 'ecsapi' in sys.modules:
-            # Force reimport to avoid LazyImport wrapper issues
             import importlib
             ecsapi = importlib.import_module('ecsapi')
         else:
@@ -15,12 +13,12 @@ def check_compute_credentials():
         import configparser
         from pathlib import Path
         
-        # Leggi API key
+        # Read API key
         parser = configparser.ConfigParser()
         parser.read(Path('~/.seeweb_cloud/seeweb_keys').expanduser())
         api_key = parser['DEFAULT']['api_key'].strip()
         
-        # Testa la connessione
+        # Test connection
         client = ecsapi.Api(token=api_key)
         client.fetch_servers()
         return True, None
@@ -39,8 +37,7 @@ def check_storage_credentials():
     return check_compute_credentials()
 
 def client():
-    """Restituisce un oggetto ecsapi.Api autenticato."""
-    # Same import fix for the client function
+    """Returns an authenticated ecsapi.Api object."""
     import sys
     if 'ecsapi' in sys.modules:
         import importlib

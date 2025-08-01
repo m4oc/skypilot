@@ -12,14 +12,14 @@ from sky.adaptors import seeweb as seeweb_adaptor
 from sky.utils import registry, resources_utils
 from sky.utils import ux_utils
 
-if typing.TYPE_CHECKING:  # evitano import ciclici nei type-checkers
+if typing.TYPE_CHECKING: 
     from sky import resources as resources_lib
     from sky.volumes import volume as volume_lib
     from sky.utils import status_lib
 
-# ---------- percorso del file-chiave in stile Lambda -----------------
+# ---------- key file path -----------------
 _SEEWEB_KEY_FILE = '~/.seeweb_cloud/seeweb_keys'
-# (il contenuto: ini-like)
+# (content: ini-like)
 #   api_key = <TOKEN>
 
 @registry.CLOUD_REGISTRY.register
@@ -69,7 +69,7 @@ class Seeweb(clouds.Cloud):
                               use_spot: bool, region: Optional[str],
                               zone: Optional[str]) -> List[clouds.Region]:
         assert zone is None, 'Seeweb does not support zones.'
-        del zone  # unused
+        del zone  
         if use_spot:
             return []
         
@@ -93,7 +93,7 @@ class Seeweb(clouds.Cloud):
         accelerators: Optional[Dict[str, int]] = None,
         use_spot: bool = False,
     ) -> Iterator[None]:
-        del num_nodes  # unused
+        del num_nodes 
         regions = cls.regions_with_offering(instance_type,
                                             accelerators,
                                             use_spot,
@@ -121,7 +121,6 @@ class Seeweb(clouds.Cloud):
         return 0.0
 
     def get_egress_cost(self, num_gigabytes: float):
-        # Seeweb doesn't charge for egress (simplified)
         return 0.0
 
     def make_deploy_resources_variables(
@@ -305,7 +304,6 @@ class Seeweb(clouds.Cloud):
                      region: Optional[str], zone: Optional[str],
                      **kwargs) -> List['status_lib.ClusterStatus']:
         """Query the status of Seeweb cluster instances."""
-        # Import here to avoid circular imports
         from sky.provision.seeweb import instance as seeweb_instance
         result = seeweb_instance.query_instances(name, {})
         return result
@@ -325,7 +323,7 @@ class Seeweb(clouds.Cloud):
     @classmethod
     def get_image_size(cls, image_id: str, region: Optional[str]) -> float:
         """Seeweb doesn't support custom images."""
-        del image_id, region  # unused
+        del image_id, region 
         with ux_utils.print_exception_no_traceback():
             raise ValueError(
                 f'Custom images are not supported on {cls._REPR}. '
@@ -347,7 +345,7 @@ class Seeweb(clouds.Cloud):
     def maybe_move_image(cls, image_id: str, source_region: str,
                          target_region: str, source_zone: Optional[str],
                          target_zone: Optional[str]) -> str:
-        del image_id, source_region, target_region, source_zone, target_zone  # unused
+        del image_id, source_region, target_region, source_zone, target_zone  
         with ux_utils.print_exception_no_traceback():
             raise ValueError(
                 f'Moving images between regions is not supported on {cls._REPR}. '
@@ -355,7 +353,7 @@ class Seeweb(clouds.Cloud):
 
     @classmethod
     def delete_image(cls, image_id: str, region: Optional[str]) -> None:
-        del image_id, region  # unused
+        del image_id, region 
         with ux_utils.print_exception_no_traceback():
             raise ValueError(
                 f'Deleting images is not supported on {cls._REPR}. '

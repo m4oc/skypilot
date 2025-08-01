@@ -574,175 +574,95 @@ In the prompt, enter your Nebius Access Key ID and Secret Access Key (see `instr
   aws configure set endpoint_url <ENDPOINT>  --profile nebius
 
 
-Seeweb Cloud
-============
 
-SkyPilot supports Seeweb Cloud, an EU‑based provider with data‑centres in Italy, Switzerland and Bulgaria. This guide explains how to authenticate and run SkyPilot jobs on Seeweb, shows the available instance plans, and lists known limitations.
+Seeweb
+~~~~~~~~~~~~~~~~~~
 
-Overview
---------
+`Seeweb <https://www.seeweb.it/>`_ Seeweb is your European Cloud Provider specializing in high-performance Cloud solutions and GPU servers ideal for powering artificial intelligence efficiently and sustainably. With a 100% renewable energy-powered infrastructure and an excellent price-performance ratio, Seeweb enables AI innovation with a responsible environmental impact.
 
-**Provider:** `Seeweb Cloud <https://www.seeweb.it/>`_
-
-**Regions:** it-fr2 (Frosinone, IT), it-mi2 (Milan, IT), ch-lug1 (Lugano, CH), bg-sof1 (Sofia, BG)
-
-**Instance families:**
-
-* General‑purpose shared CPU (eCS1–eCS8)
-* High‑memory (eCS1HM–eCS5HM)
-* GPU: RTX 6000 / A30, RTX A6000, L4, L40s, A100, AMD MI300X
 
 Setup
------
+======
+
 
 Prerequisites
-^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 * A Seeweb Cloud account.
 * A Seeweb API token with permissions to create servers.
 * (Recommended) An SSH public key added to your Seeweb profile.
-
-Authentication
-^^^^^^^^^^^^^
-
-Export the token so that SkyPilot can authenticate:
+* **ecsapi** 0.1.3 installed <https://pypi.org/project/ecsapi/> :
 
 .. code-block:: bash
 
-   export SEEWEB_TOKEN=<your-api-token>
+   pip install ecsapi
+
+
+Flow to generate an API token for GPU compute access:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Create a `billing account by registering at <https://aop.seeweb.it/en#>`__.
+2. Log into your `Seeweb dashboard : <https://cloudcenter.seeweb.it/>`__.
+3. Navigate to *Compute → API Token* in the control panel. __.
+4. Click **`"NEW TOKEN"**, assign a name, and confirm.`__.
+5. **Copy the generated token** , it can now be used to authenticate all Seeweb services.
+
+
+Authentication
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SkyPilot reads your credentials from a Seeweb key file.
+Create the file :code:`~/.seeweb_cloud/seeweb_keys` with the following contents:
+
+::
+
+    [DEFAULT]
+    api_key = <your-api-token>
+
+
+
+The directory :code:`~/.seeweb_cloud` must exist and be readable by you.
+
+
 
 Verify credentials:
+^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
    sky check seeweb
 
-If successful you will see ``Seeweb: enabled`` in the output.
+If successful you will see::
 
-Regions
-^^^^^^^
+  Seeweb: enabled [compute]
 
-.. list-table:: Available Seeweb Regions
-   :widths: 20 30 50
-   :header-rows: 1
+  🎉 Enabled infra 🎉
+  Seeweb [compute]
 
-   * - Code
-     - Location
-     - Notes
-   * - it-fr2
-     - Frosinone, Italy
-     - GPU (A100, L4, etc.)
-   * - it-mi2
-     - Milan, Italy
-     - CPU only
-   * - ch-lug1
-     - Lugano, Switzerland
-     - Low‑latency links
-   * - bg-sof1
-     - Sofia, Bulgaria
-     - 
 
-SkyPilot will auto‑select a region if none is given.
-
-Instance plans
-^^^^^^^^^^^^^
-
-The table below summarises popular Seeweb plans. SkyPilot's cloud catalogue is generated from the ``vms.csv`` file in this repository, so plans are always up‑to‑date. You can inspect the list programmatically:
-
-.. code-block:: python
-
-   import sky
-   sky.clouds["Seeweb"].instance_types_df().head()
-
-.. list-table:: Popular Seeweb Instance Plans
-   :widths: 25 15 15 45
-   :header-rows: 1
-
-   * - Plan
-     - vCPUs
-     - RAM
-     - GPUs
-   * - eCS3
-     - 4
-     - 4 GiB
-     - –
-   * - eCS8
-     - 16
-     - 64 GiB
-     - –
-   * - eCS1HM
-     - 4
-     - 64 GiB
-     - –
-   * - ECS1GPU2
-     - 8
-     - 32 GiB
-     - RTX 6000
-   * - ECS1GPU3
-     - 16
-     - 120 GiB
-     - A100
-   * - ECS2GPU4
-     - 8×MI300X
-     - 2 TiB
-     - 8×MI300X
-
-Full pricing is available via Seeweb's API and is surfaced by SkyPilot when presenting provisioning options.
-
-Quickstart
-^^^^^^^^^
-
-Launch a CPU job in Milan:
-
-.. code-block:: bash
-
-   sky launch --cloud seeweb --region it-mi2 --instance-type eCS3 \
-       -c seeweb-cpu "python hello.py"
-
-Launch a training job on an A100 GPU (region auto‑selection):
-
-.. code-block:: yaml
-   :name: seeweb_train.yaml
-
-   resources:
-     cloud: seeweb
-     accelerators: {A100: 1}
-     disk_size: 100
-   run: |
-     pip install torch torchvision
-     python train_model.py --epochs 5
-
-.. code-block:: bash
-
-   sky launch seeweb_train.yaml
-
-After provisioning, SSH as usual:
-
-.. code-block:: bash
-
-   sky ssh seeweb_train
 
 Limitations
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 * **No spot instances** – ``use_spot`` is ignored on Seeweb.
-* **Stop/Start not available** – terminate with ``sky down`` when finished.
+* **No Storage implemented** – ``--storage`` is not supported.
 * **Ports** – ``ports:`` stanza is not implemented; configure firewall rules manually via Seeweb.
 * **Custom Docker images** via ``--image`` are unsupported.
 
 Troubleshooting
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Authentication fails:** ensure ``SEEWEB_TOKEN`` is exported in the shell where you run SkyPilot.
+* **Authentication fails:** ensure ``api_key`` is configured correctly.
 * **SSH access denied:** confirm your public key is added to Seeweb before launching servers; otherwise retrieve the one‑time root password from the Seeweb panel.
 * **Instance type unavailable:** not all plans exist in every region. Either specify a region that supports the plan or let SkyPilot auto‑select.
 
 See also
-^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 * `Seeweb API docs <https://docs.seeweb.it/>`_
 * `SkyPilot GitHub <https://github.com/skypilot-org/skypilot>`_
 * `Example Seeweb integration <https://github.com/m4oc/skypilot/tree/SeewebSky>`_
+
 
 
 
