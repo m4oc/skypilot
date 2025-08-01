@@ -117,7 +117,7 @@ class Seeweb(clouds.Cloud):
     def accelerators_to_hourly_cost(self, accelerators: Dict[str, int],
                                     use_spot: bool, region: Optional[str],
                                     zone: Optional[str]) -> float:
-        # For Seeweb, accelerator costs are included in instance cost
+
         return 0.0
 
     def get_egress_cost(self, num_gigabytes: float):
